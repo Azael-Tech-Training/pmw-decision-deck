@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 3: Diagnosing PWM Circuits</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        /* Diagnostics Page Custom Styles */
+        .diag-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        @media (min-width: 760px) {
+            .diag-layout {
+                grid-template-columns: 1.2fr 1fr;
+            }
+        }
+        
+        .schematic-box {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            position: relative;
+        }
+        
+        .interactive-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* Test Point Styling */
+        .test-point {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .test-point circle {
+            fill: #1e293b;
+            stroke: var(--accent);
+            stroke-width: 2;
+            transition: all 0.2s ease;
+        }
+        .test-point text {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            fill: var(--text-secondary);
+            pointer-events: none;
+        }
+        .test-point:hover circle {
+            fill: var(--accent);
+            stroke: #fff;
+            r: 8;
+        }
+        .test-point.active circle {
+            fill: #ef4444; /* Red probe connected */
+            stroke: #fff;
+            r: 9;
+            filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+        }
+        
+        /* Probe animation */
+        .probe-line {
+            stroke: #ef4444;
+            stroke-width: 2;
+            stroke-dasharray: 4, 4;
+            fill: none;
+            opacity: 0.8;
+        }
+        
+        /* Diagnostic Instrument Panel */
+        .instrument-panel {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        /* Tool Selector */
+        .tool-selector {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+        .tool-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+            font-family: var(--font-sans);
+        }
+        .tool-btn.active {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        /* Digital Multimeter Display */
+        .dmm-device {
+            background-color: #1e293b;
+            border: 4px solid #475569;
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            box-shadow: var(--shadow-md);
+        }
+        .dmm-screen {
+            background-color: #85a38d; /* LCD Green */
+            border: 2px inset rgba(0,0,0,0.5);
+            border-radius: 4px;
+            height: 70px;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            color: #0f172a;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.2);
+        }
+        .dmm-digits {
+            font-size: 2rem;
+            text-align: right;
+            line-height: 1;
+            font-weight: bold;
+        }
+        .dmm-unit {
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+        .dmm-modes {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .dmm-mode-btn {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 0.35rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            text-align: center;
+        }
+        .dmm-mode-btn.active {
+            background-color: var(--accent-warning);
+            color: #0f172a;
+            border-color: var(--accent-warning);
+            font-weight: bold;
+        }
+        
+        /* Oscilloscope Controls */
+        .scope-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            background-color: var(--bg-tertiary);
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .knob-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .knob-group label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+        .knob-select {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.3rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-family: var(--font-mono);
+            outline: none;
+        }
+        
+        /* Trigger slider */
+        .trigger-slider-box {
+            grid-column: span 2;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            margin-top: 0.25rem;
+        }
+        
+        /* Diagnostics Dropdowns */
+        .scenario-box {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .scenario-box label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .scenario-select {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.6rem;
+            border-radius: 8px;
+            outline: none;
+            cursor: pointer;
+            font-family: var(--font-sans);
+        }
+        .scenario-select:hover {
+            border-color: var(--accent);
+        }
+        
+        .diag-explanation {
+            background-color: rgba(59, 130, 246, 0.05);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0003 • Diagnostics & Measurement</div>
+        <h1>PWM Diagnostics: Multimeter vs. Oscilloscope</h1>
+        
+        <p>In our previous lesson on <a href="./0002-low-side-vs-high-side.html">Low-Side vs. High-Side Switching</a>, we learned where the ECU driver sits in the circuit. Now, we will learn how to diagnose these systems when things go wrong. Troubleshooting a high-speed pulsed circuit requires understanding what tools to use and how to interpret their readings.</p>
+
+        <h2>The Diagnostic Dilemma: Average vs. Peak Voltage</h2>
+        <p>In standard DC circuits (like a headlight bulb), a wire is either at 12V or 0V. A standard Digital Multimeter (DMM) set to DC Volts is all you need. However, in a PWM circuit, the voltage is constantly square-wave switching. This leads to a critical diagnostic trap:</p>
+        
+        <div class="callout warning">
+            <div class="callout-title">⚠️ The Multimeter Integration Trap</div>
+            <p>A DMM in DC voltage mode is too slow to follow a 100 Hz or 10 kHz signal. Instead, it averages the pulsed signal over time. If a low-side switched cooling fan is controlled at a 50% duty cycle, the meter will read <strong>6.0V</strong>. This average reading is useful for a quick check, but it hides critical defects like signal noise, slow switching, or voltage offsets.</p>
+        </div>
+
+        <h2>Comparing the Tools</h2>
+        <ul>
+            <li><strong>Digital Multimeter (DMM):</strong> Excellent for quick checks. High-quality meters feature a <strong>Frequency (Hz)</strong> and <strong>Duty Cycle (%)</strong> mode. Connecting the meter to a active PWM line will directly display the commanded duty cycle and signal frequency.</li>
+            <li><strong>Oscilloscope:</strong> The gold standard. It draws voltage over time, showing you the exact shape of the pulses. It reveals short-duration glitches, noise, voltage drops across bad ground connections, and whether clamping circuits are functional.</li>
+        </ul>
+
+        <h2>Interactive Diagnostic Lab</h2>
+        <p>Use the simulator below to diagnose a low-side controlled radiator fan. Select a circuit condition, click on a <strong>Test Point (TP1, TP2, TP3)</strong>, and toggle between the Multimeter and the Oscilloscope to see how different faults present themselves.</p>
+
+        <!-- Interactive Diagnostic Simulator -->
+        <div class="widget">
+            <div class="scenario-box">
+                <label for="scenarioSelect">Select Circuit Condition:</label>
+                <select class="scenario-select" id="scenarioSelect">
+                    <option value="normal50">Normal Operation (50% Duty @ 100 Hz)</option>
+                    <option value="normal80">Normal Operation (80% Duty @ 100 Hz)</option>
+                    <option value="shortToGnd">Fault: Short-to-Ground on Control Wire (TP2 pinched)</option>
+                    <option value="openCircuit">Fault: Open Circuit (Broken Control Wire at ECU)</option>
+                    <option value="corrodedGnd">Fault: Corroded ECU Ground (2.5V Offset at Ground Pin)</option>
+                </select>
+            </div>
+
+            <div class="diag-layout">
+                <!-- Left Column: SVG Schematic -->
+                <div class="schematic-box">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 0.5rem; text-align: center;">
+                        CLICK A TEST POINT (TP) TO CONNECT PROBE
+                    </div>
+                    <svg class="interactive-svg" viewBox="0 0 380 200" id="diagSvg">
+                        <!-- Battery -->
+                        <g transform="translate(20, 80)">
+                            <line x1="0" y1="0" x2="0" y2="40" stroke="#f3f4f6" stroke-width="2"/>
+                            <line x1="-12" y1="10" x2="12" y2="10" stroke="#f43f5e" stroke-width="3"/>
+                            <line x1="-6" y1="20" x2="6" y2="20" stroke="#3b82f6" stroke-width="2"/>
+                            <line x1="-12" y1="30" x2="12" y2="30" stroke="#f43f5e" stroke-width="3"/>
+                            <line x1="-6" y1="40" x2="6" y2="40" stroke="#3b82f6" stroke-width="2"/>
+                            <text x="18" y="8" class="component-label" fill="#f43f5e">12V</text>
+                        </g>
+                        <!-- Left Ground -->
+                        <path d="M 20 140 L 20 155 M 12 155 L 28 155 M 16 160 L 24 160 M 18 165 L 22 165" stroke="#f3f4f6" stroke-width="2"/>
+
+                        <!-- Fuse -->
+                        <g transform="translate(65, 80)">
+                            <rect x="0" y="-8" width="24" height="16" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+                            <path d="M 0 0 C 8 -8, 16 8, 24 0" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+                            <text x="0" y="-12" class="component-label">Fuse</text>
+                        </g>
+
+                        <!-- Fan -->
+                        <g transform="translate(135, 80)">
+                            <circle cx="15" cy="0" r="18" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                            <text x="15" y="4" font-family="sans-serif" font-weight="bold" font-size="9" fill="#f3f4f6" text-anchor="middle">FAN</text>
+                        </g>
+
+                        <!-- MOSFET (Low Side) -->
+                        <g transform="translate(230, 80)">
+                            <!-- MOSFET Symbol -->
+                            <line x1="0" y1="-12" x2="0" y2="12" stroke="#475569" stroke-width="2"/>
+                            <line x1="8" y1="-12" x2="8" y2="-4" stroke="#f3f4f6" stroke-width="2"/>
+                            <line x1="8" y1="-2" x2="8" y2="2" stroke="#f3f4f6" stroke-width="2"/>
+                            <line x1="8" y1="4" x2="8" y2="12" stroke="#f3f4f6" stroke-width="2"/>
+                            <!-- Gate connection -->
+                            <line x1="-10" y1="0" x2="0" y2="0" stroke="#a5b4fc" stroke-width="1.5"/>
+                            <!-- Source/Drain connections -->
+                            <line x1="8" y1="-8" x2="18" y2="-8" stroke="#f3f4f6" stroke-width="1.5"/>
+                            <line x1="8" y1="8" x2="18" y2="8" stroke="#f3f4f6" stroke-width="1.5"/>
+                            <line x1="18" y1="-8" x2="18" y2="-15" stroke="#f3f4f6" stroke-width="1.5"/>
+                            <line x1="18" y1="8" x2="18" y2="15" stroke="#f3f4f6" stroke-width="1.5"/>
+                            <!-- Body diode arrow -->
+                            <polygon points="12,0 18,-4 18,4" fill="#475569"/>
+                            <text x="-5" y="-16" class="component-label">ECU Driver</text>
+                        </g>
+
+                        <!-- Ground Right -->
+                        <g id="gndRightGroup" transform="translate(320, 80)">
+                            <path d="M 18 15 L 18 35 M 8 35 L 28 35 M 12 40 L 24 40 M 16 45 L 20 45" stroke="#f3f4f6" stroke-width="2"/>
+                        </g>
+
+                        <!-- Connections -->
+                        <path d="M 20 80 L 20 40 L 65 40" stroke="#f43f5e" stroke-width="2" fill="none"/>
+                        <path d="M 89 40 L 135 40" stroke="#f43f5e" stroke-width="2" fill="none"/>
+                        <path d="M 165 40 L 248 40 L 248 65" stroke="#3b82f6" stroke-width="2" fill="none" id="wireControl"/>
+                        <path d="M 248 95 L 338 95 L 338 115" stroke="#3b82f6" stroke-width="2" fill="none" id="wireGnd"/>
+
+                        <!-- Test Points (Clickable Groups) -->
+                        <!-- TP1: Battery power after fuse -->
+                        <g class="test-point" id="tp1" transform="translate(110, 40)">
+                            <circle cx="0" cy="0" r="6"/>
+                            <text x="-10" y="-10">TP1</text>
+                        </g>
+                        <!-- TP2: PWM Control Line -->
+                        <g class="test-point" id="tp2" transform="translate(200, 40)">
+                            <circle cx="0" cy="0" r="6"/>
+                            <text x="-10" y="-10">TP2</text>
+                        </g>
+                        <!-- TP3: Ground Terminal -->
+                        <g class="test-point" id="tp3" transform="translate(300, 95)">
+                            <circle cx="0" cy="0" r="6"/>
+                            <text x="-10" y="-10">TP3</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Right Column: Instruments -->
+                <div class="instrument-panel">
+                    <div class="tool-selector">
+                        <button class="tool-btn active" id="btnUseDMM">Digital Multimeter</button>
+                        <button class="tool-btn" id="btnUseScope">Oscilloscope</button>
+                    </div>
+
+                    <!-- DMM Interface -->
+                    <div class="dmm-device" id="dmmContainer">
+                        <div class="dmm-screen">
+                            <span class="dmm-unit" id="dmmModeIndicator">DC VOLTAGE</span>
+                            <span class="dmm-digits" id="dmmDisplay">12.00</span>
+                            <span class="dmm-unit" style="justify-content: flex-end;" id="dmmUnitSymbol">V</span>
+                        </div>
+                        <div class="dmm-modes">
+                            <button class="dmm-mode-btn active" id="dmmModeV">V DC</button>
+                            <button class="dmm-mode-btn" id="dmmModeHz">Hz</button>
+                            <button class="dmm-mode-btn" id="dmmModeDuty">% Duty</button>
+                        </div>
+                    </div>
+
+                    <!-- Scope Interface -->
+                    <div class="scope-container" id="scopeContainer" style="display: none;">
+                        <canvas id="scopeCanvas" class="scope-screen"></canvas>
+                        <div class="scope-controls">
+                            <div class="knob-group">
+                                <label for="scopeTimebase">Timebase</label>
+                                <select class="knob-select" id="scopeTimebase">
+                                    <option value="1">1 ms/div</option>
+                                    <option value="2" selected>2 ms/div</option>
+                                    <option value="5">5 ms/div</option>
+                                </select>
+                            </div>
+                            <div class="knob-group">
+                                <label for="scopeVoltsDiv">Volts/Div</label>
+                                <select class="knob-select" id="scopeVoltsDiv">
+                                    <option value="2">2 V/div</option>
+                                    <option value="5" selected>5 V/div</option>
+                                    <option value="10">10 V/div</option>
+                                </select>
+                            </div>
+                            <div class="trigger-slider-box">
+                                <label for="scopeTrigger" style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--font-mono); display: flex; justify-content: space-between;">
+                                    <span>Trigger Level</span>
+                                    <span id="triggerVal">6.0 V</span>
+                                </label>
+                                <input type="range" id="scopeTrigger" min="0" max="15" step="0.5" value="6">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explanatory readout -->
+                    <div class="diag-explanation" id="diagExplanation">
+                        Select a test point on the circuit diagram to begin measurements.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>You hook up an oscilloscope to TP2 (the control line) on a low-side switched cooling fan. When the fan is commanded ON (spinning), you observe a clean square wave switching between 2.5V and 12V. What is the root cause?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="false">The fan motor is internally shorted, drawing too much current.</button>
+                <button class="quiz-option" data-correct="true">There is high resistance (corrosion) on the ground circuit after the ECU driver.</button>
+                <button class="quiz-option" data-correct="false">The battery voltage has dropped below specifications.</button>
+                <button class="quiz-option" data-correct="false">The N-channel MOSFET inside the ECU is shorted internally.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>Why does a standard DC voltmeter read 12.0V when connected to TP2 (the control line) when the fan is commanded OFF?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The open driver switch stops current flow, eliminating any voltage drop across the motor coils.</button>
+                <button class="quiz-option" data-correct="false">The ECU driver is high-side switching to provide positive output voltage.</button>
+                <button class="quiz-option" data-correct="false">The fuse has blown, separating the circuit from ground.</button>
+                <button class="quiz-option" data-correct="false">The fan has internal safety capacitors holding a constant charge.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0002-low-side-vs-high-side.html" class="footer-link">← Previous Lesson</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Next Step:</strong> You have completed the PWM diagnostics curriculum! Ask me to explain how to <strong>design a custom PWM fan speed controller using an Arduino/ESP32</strong>, or write up a design proposal.
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostics Simulation Logic -->
+    <script>
+        const scenarioSelect = document.getElementById('scenarioSelect');
+        const tp1 = document.getElementById('tp1');
+        const tp2 = document.getElementById('tp2');
+        const tp3 = document.getElementById('tp3');
+        
+        const btnUseDMM = document.getElementById('btnUseDMM');
+        const btnUseScope = document.getElementById('btnUseScope');
+        const dmmContainer = document.getElementById('dmmContainer');
+        const scopeContainer = document.getElementById('scopeContainer');
+        
+        const dmmDisplay = document.getElementById('dmmDisplay');
+        const dmmModeIndicator = document.getElementById('dmmModeIndicator');
+        const dmmUnitSymbol = document.getElementById('dmmUnitSymbol');
+        
+        const dmmModeV = document.getElementById('dmmModeV');
+        const dmmModeHz = document.getElementById('dmmModeHz');
+        const dmmModeDuty = document.getElementById('dmmModeDuty');
+        
+        const scopeTimebase = document.getElementById('scopeTimebase');
+        const scopeVoltsDiv = document.getElementById('scopeVoltsDiv');
+        const scopeTrigger = document.getElementById('scopeTrigger');
+        const triggerVal = document.getElementById('triggerVal');
+        
+        const diagExplanation = document.getElementById('diagExplanation');
+        const canvas = document.getElementById('scopeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const wireControl = document.getElementById('wireControl');
+        const wireGnd = document.getElementById('wireGnd');
+        
+        // State variables
+        let selectedTP = null; // 'tp1', 'tp2', 'tp3'
+        let currentTool = 'dmm'; // 'dmm' or 'scope'
+        let dmmMode = 'V'; // 'V', 'Hz', 'Duty'
+        let animationFrameId = null;
+
+        // Setup high-DPI canvas
+        function setupCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = 160 * window.devicePixelRatio;
+            canvas.style.height = '160px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.addEventListener('resize', setupCanvas);
+        setupCanvas();
+
+        // Register TP click events
+        [tp1, tp2, tp3].forEach(tp => {
+            tp.addEventListener('click', () => {
+                [tp1, tp2, tp3].forEach(t => t.classList.remove('active'));
+                tp.classList.add('active');
+                selectedTP = tp.id;
+                updateMeasurements();
+            });
+        });
+
+        // Tool toggle
+        btnUseDMM.addEventListener('click', () => {
+            currentTool = 'dmm';
+            btnUseDMM.classList.add('active');
+            btnUseScope.classList.remove('active');
+            dmmContainer.style.display = 'flex';
+            scopeContainer.style.display = 'none';
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            updateMeasurements();
+        });
+        
+        btnUseScope.addEventListener('click', () => {
+            currentTool = 'scope';
+            btnUseScope.classList.add('active');
+            btnUseDMM.classList.remove('active');
+            scopeContainer.style.display = 'block';
+            dmmContainer.style.display = 'none';
+            setupCanvas();
+            startScopeAnimation();
+            updateMeasurements();
+        });
+
+        // DMM mode toggle
+        [dmmModeV, dmmModeHz, dmmModeDuty].forEach(btn => {
+            btn.addEventListener('click', () => {
+                [dmmModeV, dmmModeHz, dmmModeDuty].forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (btn === dmmModeV) dmmMode = 'V';
+                if (btn === dmmModeHz) dmmMode = 'Hz';
+                if (btn === dmmModeDuty) dmmMode = 'Duty';
+                updateMeasurements();
+            });
+        });
+
+        // Scope controls update
+        [scopeTimebase, scopeVoltsDiv, scopeTrigger].forEach(elem => {
+            elem.addEventListener('input', () => {
+                if (elem === scopeTrigger) {
+                    triggerVal.textContent = `${parseFloat(scopeTrigger.value).toFixed(1)} V`;
+                }
+                updateMeasurements();
+            });
+        });
+
+        scenarioSelect.addEventListener('change', () => {
+            updateMeasurements();
+        });
+
+        // Primary Measurement Calculation Logic
+        function getMeasurementData() {
+            const scenario = scenarioSelect.value;
+            
+            // Default normal signal behaviors
+            let frequency = 100; // Hz
+            let duty = 50; // default % command (on-time of switch)
+            let batteryV = 12.0;
+            
+            if (scenario === 'normal80') {
+                duty = 80;
+            }
+
+            // Object holding TP details
+            const tpData = {
+                tp1: { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 0, type: 'dc' },
+                tp2: { v_avg: 0, v_min: 0, v_max: 0, hz: 0, duty: 0, type: 'dc' },
+                tp3: { v_avg: 0, v_min: 0, v_max: 0, hz: 0, duty: 0, type: 'dc' }
+            };
+
+            // Calculate TP details based on scenario
+            switch(scenario) {
+                case 'normal50':
+                case 'normal80':
+                    const dFact = duty / 100;
+                    // TP1 is direct battery power (stable 12V)
+                    tpData.tp1 = { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 100, type: 'dc' };
+                    // TP2 is the control line (switches between 0V and 12V).
+                    // In a low-side setup:
+                    //   When switch is ON (duty% of time), TP2 is at 0V.
+                    //   When switch is OFF ((1-duty)% of time), TP2 is pulled up to 12V through fan coils.
+                    //   Average V = 12V * (1 - dFact)
+                    tpData.tp2 = {
+                        v_avg: batteryV * (1 - dFact),
+                        v_min: 0.0,
+                        v_max: batteryV,
+                        hz: frequency,
+                        duty: 100 - duty, // The multimeter reads the active-high pulse width (which is the off-time of the low-side switch)
+                        type: 'pwm'
+                    };
+                    // TP3 is direct chassis ground (0V)
+                    tpData.tp3 = { v_avg: 0.0, v_min: 0.0, v_max: 0.0, hz: 0, duty: 0, type: 'dc' };
+                    break;
+                    
+                case 'shortToGnd':
+                    // TP2 control wire is pinched to chassis (0V). Fan runs 100%.
+                    tpData.tp1 = { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 100, type: 'dc' };
+                    tpData.tp2 = { v_avg: 0.0, v_min: 0.0, v_max: 0.0, hz: 0, duty: 0, type: 'dc' };
+                    tpData.tp3 = { v_avg: 0.0, v_min: 0.0, v_max: 0.0, hz: 0, duty: 0, type: 'dc' };
+                    break;
+                    
+                case 'openCircuit':
+                    // Broken line at ECU. Fan does not run. 
+                    // TP2 is pulled to 12V through fan coils but never grounded.
+                    tpData.tp1 = { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 100, type: 'dc' };
+                    tpData.tp2 = { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 100, type: 'dc' };
+                    tpData.tp3 = { v_avg: 0.0, v_min: 0.0, v_max: 0.0, hz: 0, duty: 0, type: 'dc' };
+                    break;
+                    
+                case 'corrodedGnd':
+                    // Ground has 2.5V drop. When driver switches ON, TP2 drops only to 2.5V.
+                    // Fan runs weakly.
+                    const dCor = duty / 100; // normal50 active (50%)
+                    tpData.tp1 = { v_avg: batteryV, v_min: batteryV, v_max: batteryV, hz: 0, duty: 100, type: 'dc' };
+                    tpData.tp2 = {
+                        v_avg: (batteryV * (1 - dCor)) + (2.5 * dCor), // average between 12V and 2.5V
+                        v_min: 2.5,
+                        v_max: batteryV,
+                        hz: frequency,
+                        duty: 100 - duty,
+                        type: 'pwm-offset'
+                    };
+                    tpData.tp3 = { v_avg: 2.5, v_min: 2.5, v_max: 2.5, hz: 0, duty: 100, type: 'dc' };
+                    break;
+            }
+
+            return tpData[selectedTP] || null;
+        }
+
+        function updateMeasurements() {
+            // Update wire schematic colors for diagnostics visual aid
+            const scenario = scenarioSelect.value;
+            if (scenario === 'shortToGnd') {
+                wireControl.style.stroke = '#3b82f6'; // permanently grounded
+                wireGnd.style.stroke = '#3b82f6';
+            } else if (scenario === 'corrodedGnd') {
+                wireGnd.style.stroke = '#f59e0b'; // bad ground (orange warning color)
+                wireControl.style.stroke = '#3b82f6';
+            } else {
+                wireControl.style.stroke = '#3b82f6';
+                wireGnd.style.stroke = '#3b82f6';
+            }
+
+            const data = getMeasurementData();
+            
+            if (!selectedTP) {
+                dmmDisplay.textContent = "----";
+                diagExplanation.innerHTML = "<strong>Welcome to the Diagnostic Lab:</strong> Choose a circuit condition above, then click on a test point (<strong>TP1</strong>, <strong>TP2</strong>, or <strong>TP3</strong>) on the schematic to connect your test lead.";
+                return;
+            }
+
+            // Update Multimeter screen
+            if (data) {
+                if (dmmMode === 'V') {
+                    dmmModeIndicator.textContent = "DC VOLTAGE";
+                    dmmDisplay.textContent = data.v_avg.toFixed(2);
+                    dmmUnitSymbol.textContent = "V";
+                } else if (dmmMode === 'Hz') {
+                    dmmModeIndicator.textContent = "FREQUENCY";
+                    dmmDisplay.textContent = data.hz.toFixed(0);
+                    dmmUnitSymbol.textContent = "Hz";
+                } else if (dmmMode === 'Duty') {
+                    dmmModeIndicator.textContent = "DUTY CYCLE";
+                    dmmDisplay.textContent = data.duty.toFixed(1);
+                    dmmUnitSymbol.textContent = "%";
+                }
+            }
+
+            // Update explanation text
+            let desc = "";
+            if (selectedTP === 'tp1') {
+                desc = "<strong>TP1 (Battery Positive Power):</strong> You are probing the circuit supply side immediately after the fuse. ";
+                if (scenario === 'shortToGnd') {
+                    desc += "Even with the control wire shorted to ground, TP1 sits at a solid 12.0V because the cooling fan motor winding is in series, which limits the current draw. The fuse is safe.";
+                } else {
+                    desc += "It reads a constant 12.0V, showing that power is clean and reaching the actuator.";
+                }
+            } else if (selectedTP === 'tp2') {
+                desc = "<strong>TP2 (PWM Control Line):</strong> Probing between the load (fan) and the ECU ground-side switch. ";
+                if (scenario.startsWith('normal')) {
+                    const dutyPct = scenario === 'normal80' ? 80 : 50;
+                    desc += `Under normal operation, the ECU pulses the ground line. The multimeter reads the integrated average voltage (${(12 * (1 - dutyPct/100)).toFixed(1)}V). Switch to the <strong>Oscilloscope</strong> to see the square wave pulsing between 0V (ON) and 12V (OFF).`;
+                } else if (scenario === 'shortToGnd') {
+                    desc += "<strong>Symptom: Fan runs constantly.</strong> The multimeter reads a flat 0.0V. Since the wire is shorted to the metal chassis, it remains grounded permanently. The ECU has lost control.";
+                } else if (scenario === 'openCircuit') {
+                    desc += "<strong>Symptom: Fan is inoperative.</strong> Probing TP2 reads a flat 12.0V. Because the ground wire is broken at the ECU, no current can flow. The wire pulls up to battery voltage through the fan's internal windings, which is why it reads 12V even though it is dead.";
+                } else if (scenario === 'corrodedGnd') {
+                    desc += "<strong>Symptom: Fan operates weakly.</strong> The multimeter reads an average of 7.25V. On the <strong>Oscilloscope</strong>, you will see the critical issue: the low part of the square wave sits at 2.5V instead of 0V. The ECU cannot drop the control line to ground due to a corroded ECU grounding circuit.";
+                }
+            } else if (selectedTP === 'tp3') {
+                desc = "<strong>TP3 (ECU Ground Pin):</strong> Probing the ground circuit directly at the module. ";
+                if (scenario === 'corrodedGnd') {
+                    desc += "<strong>Fault Found!</strong> TP3 reads a constant 2.5V relative to battery ground. In a healthy system, ground should read 0.0V. This positive voltage offset proves there is corrosion in the ground harness wire or connector, raising the entire ECU ground plane.";
+                } else {
+                    desc += "It reads a solid 0.0V, indicating a clean and healthy path to chassis ground.";
+                }
+            }
+            diagExplanation.innerHTML = desc;
+        }
+
+        // Scope Draw Loop
+        function startScopeAnimation() {
+            if (animationFrameId) return;
+            
+            function draw() {
+                const w = canvas.width / window.devicePixelRatio;
+                const h = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, w, h);
+                
+                // Draw grid lines
+                ctx.strokeStyle = '#0a220b';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const divX = 10;
+                for (let i = 1; i < divX; i++) {
+                    const x = (w / divX) * i;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, h);
+                }
+                const divY = 8;
+                for (let i = 1; i < divY; i++) {
+                    const y = (h / divY) * i;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(w, y);
+                }
+                ctx.stroke();
+
+                if (!selectedTP) {
+                    // No test point selected, draw flat line in center
+                    ctx.strokeStyle = '#5a7360'; // grayed out line
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, h * 0.5);
+                    ctx.lineTo(w, h * 0.5);
+                    ctx.stroke();
+                    
+                    animationFrameId = requestAnimationFrame(draw);
+                    return;
+                }
+
+                const data = getMeasurementData();
+                const voltsDiv = parseFloat(scopeVoltsDiv.value);
+                const timebase = parseFloat(scopeTimebase.value); // ms/div
+                const trigLvl = parseFloat(scopeTrigger.value);
+
+                // Grid scale calculation
+                // Height of screen is h pixels. It represents 8 divisions.
+                // Total voltage range represented = 8 * voltsDiv
+                const totalVRange = 8 * voltsDiv;
+                const pixelsPerVolt = h / totalVRange;
+                
+                // Let's position 0V line at 1 division from bottom
+                const y0 = h - (h / 8); 
+
+                // Draw trigger level line
+                const yTrig = y0 - (trigLvl * pixelsPerVolt);
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)'; // faint red trigger line
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(0, yTrig);
+                ctx.lineTo(w, yTrig);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Signal setup
+                ctx.strokeStyle = '#10b981'; // green phosphor
+                ctx.lineWidth = 2.5;
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = '#10b981';
+                ctx.beginPath();
+
+                // Horizontal time width: 10 divisions * timebase = ms total
+                const totalTimeMs = 10 * timebase;
+                const periodMs = 10.0; // 100 Hz has 10ms period
+
+                let lastY = null;
+                const now = performance.now();
+
+                for (let x = 0; x < w; x++) {
+                    const tMs = (x / w) * totalTimeMs;
+                    let v = 0;
+
+                    if (data.type === 'dc') {
+                        v = data.v_avg;
+                    } else if (data.type === 'pwm' || data.type === 'pwm-offset') {
+                        // Periodic square wave
+                        // Add phase offset to simulate live scrolling, or keep it triggered
+                        // Triggered: start rise exactly when t % period = 0
+                        const phase = (tMs / periodMs) % 1.0;
+                        const dutyFrac = (100 - data.duty) / 100; // switch ON-time
+                        
+                        // Switch is ON (low-state) or OFF (high-state)
+                        if (phase < dutyFrac) {
+                            v = data.v_min; // low voltage (0V or 2.5V offset)
+                        } else {
+                            v = data.v_max; // high voltage (12V)
+                        }
+                    }
+
+                    // Convert voltage to pixel height
+                    const y = y0 - (v * pixelsPerVolt);
+
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        if (lastY !== null && Math.abs(lastY - y) > 10) {
+                            // Vertical edge
+                            ctx.lineTo(x, lastY);
+                        }
+                        ctx.lineTo(x, y);
+                    }
+                    lastY = y;
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0; // reset
+
+                animationFrameId = requestAnimationFrame(draw);
+            }
+            animationFrameId = requestAnimationFrame(draw);
+        }
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "Because the switch is low-side, the driver connects the control line to ground. If ground itself is corroded (exhibiting high resistance), current flowing through the circuit builds a voltage drop across that corrosion, raising the 'low' state above 0V.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "When the ECU switch is open, no current flows. Without current flowing through the fan's motor windings, there is no voltage drop across them. Consequently, the control wire pulls up entirely to the source battery voltage of 12.0V.");
+    </script>
+</body>
+</html>

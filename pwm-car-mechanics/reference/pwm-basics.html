@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference: PWM Basics & Diagnostics Cheat Sheet</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        @media (min-width: 600px) {
+            .grid-3 {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+        .stat-card {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 0.25rem;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        td {
+            color: var(--text-secondary);
+        }
+        tr:hover td {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Reference Document</div>
+        <h1>PWM Basics & Diagnostics Cheat Sheet</h1>
+        <p>A quick-reference guide for equations, common component frequencies, and diagnostic measurements on modern automotive PWM circuits.</p>
+
+        <h2>Core Equations</h2>
+        <div class="grid-3">
+            <div class="stat-card">
+                <div class="stat-val">D = (T_on / T) * 100</div>
+                <div class="stat-label">Duty Cycle (%)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-val">f = 1 / T</div>
+                <div class="stat-label">Frequency (Hz)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-val">V_avg = V_src * D</div>
+                <div class="stat-label">Average Voltage (V)</div>
+            </div>
+        </div>
+
+        <h2>Short Circuits & Fuse Physics</h2>
+        <ul>
+            <li><strong>Ohm's Law in Faults:</strong> $I = V / R$. When a power wire shorts to the chassis ground before the load, resistance drops to near-zero ($R \approx 0.05\ \Omega$), causing current to surge instantly.</li>
+            <li><strong>Joule Heating:</strong> $P = I^2 \times R_{\text{fuse}}$. Heating rate spikes exponentially with current. A normal 6A load generates only 0.7W of heat in a fuse, whereas a 240A short-circuit current generates over 1,150W, melting the fuse link in milliseconds.</li>
+            <li><strong>Low-Side Control Short:</strong> A short-to-ground after the load bypasses the switch, but the load remains in series. Current is limited by the load's resistance. The fuse does not blow, but the load runs continuously.</li>
+            <li><strong>High-Side Control Short:</strong> A short-to-ground before the load bypasses the load entirely. When the switch closes, current flows directly from battery to chassis ground. The fuse blows immediately to prevent fire.</li>
+        </ul>
+
+        <h2>Common Automotive PWM Frequencies</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Typical Frequency</th>
+                    <th>Switching Strategy</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Cabin Blower Fan</strong></td>
+                    <td>100 Hz – 500 Hz</td>
+                    <td>Low-Side PWM (duty cycle varies speed)</td>
+                </tr>
+                <tr>
+                    <td><strong>Radiator Cooling Fan</strong></td>
+                    <td>100 Hz – 300 Hz</td>
+                    <td>Low-Side or High-Side PWM (high current driver)</td>
+                </tr>
+                <tr>
+                    <td><strong>Electronic Fuel Pump</strong></td>
+                    <td>100 Hz – 20 kHz</td>
+                    <td>Fuel pump driver module (FPDM) regulated speed</td>
+                </tr>
+                <tr>
+                    <td><strong>EVAP Purge Solenoid</strong></td>
+                    <td>10 Hz – 30 Hz</td>
+                    <td>Slow switching to regulate gasoline vapor flow</td>
+                </tr>
+                <tr>
+                    <td><strong>Electronic Throttle Body</strong></td>
+                    <td>1 kHz – 5 kHz</td>
+                    <td>Dual-direction H-bridge for precise motor positioning</td>
+                </tr>
+                <tr>
+                    <td><strong>Fuel Injectors</strong></td>
+                    <td>Dynamic (with Engine RPM)</td>
+                    <td>Pulse width dictates fuel volume directly</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Diagnostic Measurement Checklist</h2>
+        <h3>Using a Digital Multimeter (DMM)</h3>
+        <ul>
+            <li><strong>DC Voltage Mode:</strong> Measures $V_{avg}$. Excellent for quick sanity checks. If a 12V supply reads 6V on a fan, the duty cycle is likely around 50%.</li>
+            <li><strong>Duty Cycle (%) Mode:</strong> Select DMM to Hz/% mode. Connect the black probe to a known good ground, and back-pin the signal line with the red probe. Select % to read command value.</li>
+            <li><strong>Frequency (Hz) Mode:</strong> Verifies signal stability. A reading of 0 Hz or erratic shifting suggests a lost control wire or bad driver.</li>
+        </ul>
+
+        <h3>Using an Oscilloscope (PicoScope/etc.)</h3>
+        <ul>
+            <li><strong>Channel Setup:</strong> Set to DC coupling. For 12V systems, set the vertical voltage scale to ±20V or 0–20V. For 5V sensors, set to 0–10V.</li>
+            <li><strong>Timebase Setup:</strong> For a 100 Hz signal, one cycle is 10ms. A timebase of 5ms/div or 10ms/div allows you to view 5–10 complete pulses.</li>
+            <li><strong>Trigger:</strong> Select standard "Auto" or "Repeat" trigger. Set the trigger threshold (voltage level) to roughly half the signal's peak height (e.g., 6V for a 12V signal) on a "Rising Edge."</li>
+        </ul>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="../lessons/0001-what-is-pwm-and-why-cars.html" class="footer-link">← Back to Lesson 1</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../MISSION.md" class="footer-link">🎯 View Mission</a>
+            </div>
+            <div class="reminder-box">
+                Keep this sheet open in a browser tab during your garage diagnostic sessions or custom electronic designs.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

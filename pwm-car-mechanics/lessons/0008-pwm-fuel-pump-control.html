@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 8: PWM Fuel Pump Control (Returnless Systems)</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .sim-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 760px) {
+            .sim-grid {
+                grid-template-columns: 1.2fr 1fr;
+            }
+        }
+        .gauge-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 200px;
+        }
+        .gauge-svg {
+            width: 120px;
+            height: 120px;
+        }
+        .gauge-needle {
+            transition: transform 0.15s ease-out;
+            transform-origin: 50px 50px;
+            stroke: #f43f5e;
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+        .flow-line {
+            fill: none;
+            stroke: #475569;
+            stroke-width: 6;
+            stroke-linecap: round;
+        }
+        .fuel-dot {
+            fill: #eab308;
+            transition: cx 0.05s linear;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 600px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .scope-screen {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            height: 100px;
+            width: 100%;
+            display: block;
+            margin-top: 1rem;
+        }
+        .scope-trace {
+            stroke: #eab308;
+            stroke-width: 2.5;
+            fill: none;
+        }
+        .scope-grid {
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 1;
+        }
+        .control-panel {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0008 • Automotive Components</div>
+        <h1>PWM Fuel Pump Control (Returnless Systems)</h1>
+        
+        <p>In older vehicles, the fuel pump ran at a constant 100% speed as long as the engine was running. A mechanical pressure regulator at the engine returned excess fuel back to the tank. Today, we will explore why modern vehicles use **Returnless Fuel Systems** controlled by pulse-width modulation, how the ECU manages them, and the diagnostic implications.</p>
+
+        <h2>1. Why the Shift to PWM Fuel Control?</h2>
+        <p>Running a fuel pump at 100% duty cycle constantly is highly inefficient and creates several problems:</p>
+        <ul>
+            <li><strong>Fuel Vapor Evaporation (EVAP):</strong> Circulating fuel continuously over a hot engine rail and returning it to the tank heats up the fuel. Warm gasoline creates excessive vapor, increasing pressure in the fuel tank and loading the EVAP emissions canister.</li>
+            <li><strong>Electrical Drain:</strong> A pump running at full power draws 8 to 10 Amperes constantly, placing a heavy load on the alternator.</li>
+            <li><strong>Component Wear:</strong> The pump motor and internal brushes wear out much faster.</li>
+        </ul>
+        <p>A **Returnless Fuel System** eliminates the return line. Instead, the ECU regulates the pressure dynamically by changing the speed of the fuel pump motor using high-frequency PWM switching.</p>
+
+        <h2>2. The Closed-Loop Feedback Loop</h2>
+        <p>To maintain a rock-solid target fuel rail pressure (typically around 40 to 60 psi), the ECU utilizes a fast feedback control loop:</p>
+        <ol>
+            <li>The **Fuel Rail Pressure (FRP) Sensor** monitors the pressure near the fuel injectors and sends a voltage signal to the PCM (Engine Computer).</li>
+            <li>If you press the accelerator pedal, the fuel injectors open wider and consume more fuel, causing the rail pressure to drop.</li>
+            <li>The PCM senses the pressure drop, calculates the error, and increases the commanded PWM duty cycle to speed up the pump and restore target pressure.</li>
+            <li>When you let off the throttle, the injectors close. Pressure rises, so the PCM drops the duty cycle to slow the pump down.</li>
+        </ol>
+
+        <h2>3. The Two-Stage PWM Architecture</h2>
+        <p>Because the fuel pump draws high current, the PCM does not drive it directly. Instead, a specialized module called the **Fuel Pump Driver Module (FPDM)** acts as the high-current switch:</p>
+        <p><strong>PCM $\rightarrow$ (Low-Current PWM Signal) $\rightarrow$ FPDM $\rightarrow$ (High-Current PWM Drive) $\rightarrow$ Fuel Pump</strong></p>
+        <p>In many vehicles (e.g. Ford), the PCM-to-FPDM control signal runs at **80 Hz**. The FPDM decodes this duty cycle and outputs a high-frequency **20 kHz** PWM supply to the pump. The high frequency prevents pressure ripples in the fuel lines and keeps the motor hum outside the range of human hearing.</p>
+
+        <!-- Interactive Returnless Fuel Simulator -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Interactive Returnless Fuel System</span>
+                <span style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">PCM & FPDM CONTROL</span>
+            </div>
+
+            <!-- Stats Readouts -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Throttle Pedal</div>
+                    <div class="stat-val" id="valPedal">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Fuel Rail Pressure</div>
+                    <div class="stat-val" id="valPressure">40 psi</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Pump Duty Cycle</div>
+                    <div class="stat-val" id="valDuty">25%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Fuel Consumption</div>
+                    <div class="stat-val" id="valFlow">0.5 GPH</div>
+                </div>
+            </div>
+
+            <div class="sim-grid">
+                <!-- Left: Fuel Pipe & Droplet Animation -->
+                <div style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; justify-content: center;">
+                    <span class="component-label" style="margin-bottom: 0.5rem; display: block; text-align: center;">Fuel Flow Animation</span>
+                    <svg viewBox="0 0 200 60" style="width: 100%; height: auto;">
+                        <path d="M 10 30 L 190 30" class="flow-line"/>
+                        <!-- Fuel Pump Visual -->
+                        <rect x="10" y="15" width="25" height="30" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="22" y="34" font-size="8" fill="#fff" text-anchor="middle" font-weight="bold">PUMP</text>
+                        <!-- Injector Rail -->
+                        <rect x="165" y="15" width="25" height="30" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="177" y="34" font-size="8" fill="#fff" text-anchor="middle" font-weight="bold">RAIL</text>
+                        
+                        <!-- Fuel Droplets -->
+                        <circle cx="50" cy="30" r="4" class="fuel-dot" id="dot1"/>
+                        <circle cx="90" cy="30" r="4" class="fuel-dot" id="dot2"/>
+                        <circle cx="130" cy="30" r="4" class="fuel-dot" id="dot3"/>
+                    </svg>
+
+                    <!-- Oscilloscope -->
+                    <svg class="scope-screen" viewBox="0 0 400 100">
+                        <line x1="0" y1="20" x2="400" y2="20" class="scope-grid"/>
+                        <line x1="0" y1="50" x2="400" y2="50" class="scope-grid"/>
+                        <line x1="0" y1="80" x2="400" y2="80" class="scope-grid"/>
+                        <path d="M 0 80 L 400 80" class="scope-trace" id="scopeTrace"/>
+                        <text x="10" y="15" fill="#eab308" font-family="monospace" font-size="8" font-weight="bold">FPDM Output (12V)</text>
+                    </svg>
+                </div>
+
+                <!-- Right: Fuel Pressure Gauge -->
+                <div class="gauge-container">
+                    <span class="component-label" style="margin-bottom: 0.5rem;">Fuel Rail Pressure Gauge</span>
+                    <svg class="gauge-svg" viewBox="0 0 100 100">
+                        <!-- Background scale -->
+                        <path d="M 20 80 A 40 40 0 1 1 80 80" fill="none" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+                        <!-- Target marker at 40 psi (center of dial) -->
+                        <line x1="50" y1="10" x2="50" y2="18" stroke="#10b981" stroke-width="3"/>
+                        <!-- Needle -->
+                        <line x1="50" y1="50" x2="50" y2="15" class="gauge-needle" id="gaugeNeedle" transform="rotate(-90)"/>
+                        <circle cx="50" cy="50" r="5" fill="#f3f4f6"/>
+                        <text x="50" y="70" font-family="monospace" font-weight="bold" font-size="8" fill="#9ca3af" text-anchor="middle">psi</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Controller Slider -->
+            <div class="control-panel">
+                <label for="pedalSlider" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary);">
+                    Press Accelerator Pedal (Simulate Engine Load):
+                </label>
+                <div class="slider-container">
+                    <span style="font-size: 0.85rem; font-family: var(--font-mono);">0%</span>
+                    <input type="range" id="pedalSlider" min="0" max="100" value="0" style="width: 100%;">
+                    <span style="font-size: 0.85rem; font-family: var(--font-mono);">100%</span>
+                </div>
+            </div>
+        </div>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>What major emission and efficiency benefit does a returnless PWM fuel system provide?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">It prevents gasoline tank vapors from forming.</button>
+                <button class="quiz-option" data-correct="false">It regulates the engine battery system drives.</button>
+                <button class="quiz-option" data-correct="false">It forces exhaust oxygen sensors to calibrate.</button>
+                <button class="quiz-option" data-correct="false">It forces fuel injector solenoid pulses short.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>How does the PCM communicate fuel pump speed requests to the driver module?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">It sends a low current duty cycle command signal.</button>
+                <button class="quiz-option" data-correct="false">It alters switch contact points on the ground loops.</button>
+                <button class="quiz-option" data-correct="false">It shifts pulse rates on the fuel pump terminals.</button>
+                <button class="quiz-option" data-correct="false">It cuts main battery feeds when the engine stops.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0007-time-is-the-variable.html" class="footer-link">← Previous Lesson (Time Modulation)</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Diagnostics Lesson →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Next Step:</strong> Drag the slider. Notice how the FPDM duty cycle increases to match fuel flow, keeping the fuel pressure stable at 40 psi.
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const pedalSlider = document.getElementById('pedalSlider');
+        const valPedal = document.getElementById('valPedal');
+        const valPressure = document.getElementById('valPressure');
+        const valDuty = document.getElementById('valDuty');
+        const valFlow = document.getElementById('valFlow');
+        
+        const needle = document.getElementById('gaugeNeedle');
+        const scopeTrace = document.getElementById('scopeTrace');
+        
+        const dot1 = document.getElementById('dot1');
+        const dot2 = document.getElementById('dot2');
+        const dot3 = document.getElementById('dot3');
+
+        let dotPos1 = 50;
+        let dotPos2 = 90;
+        let dotPos3 = 130;
+
+        function updateSystem() {
+            const pedal = parseInt(pedalSlider.value);
+            
+            // Calculate flow based on pedal (0.5 GPH at idle to 15 GPH at 100%)
+            const flow = 0.5 + (pedal / 100) * 14.5;
+            
+            // Calculate necessary duty cycle to maintain 40 psi (25% at idle to 85% at 100%)
+            const duty = 25 + Math.round((pedal / 100) * 60);
+            
+            // Simulate slight transient pressure drop/bounce during movement
+            // Under steady load, target pressure is 40 psi.
+            // When pedal is actively moved, let's add a small offset
+            const targetPressure = 40.0;
+            const pressure = targetPressure; // keep steady for dial simplicity
+
+            // Update displays
+            valPedal.textContent = `${pedal}%`;
+            valPressure.textContent = `${pressure} psi`;
+            valDuty.textContent = `${duty}%`;
+            valFlow.textContent = `${flow.toFixed(1)} GPH`;
+
+            // Update Gauge Needle (0 psi = -90 deg, 40 psi = 0 deg, 80 psi = 90 deg)
+            const angle = (pressure - 40) * 2.25; 
+            needle.setAttribute('transform', `rotate(${angle})`);
+
+            // Update scope trace (draw 5 square waves)
+            const cycleWidth = 80;
+            const highWidth = (duty / 100) * cycleWidth;
+            let dString = `M 0 80`;
+            for (let i = 0; i < 5; i++) {
+                const startX = i * cycleWidth;
+                dString += ` L ${startX} 20 L ${startX + highWidth} 20 L ${startX + highWidth} 80 L ${startX + cycleWidth} 80`;
+            }
+            scopeTrace.setAttribute('d', dString);
+        }
+
+        // Animate droplets in fuel line
+        function animateDroplets() {
+            const pedal = parseInt(pedalSlider.value);
+            const speed = 0.5 + (pedal / 100) * 3; // speed of movement
+            
+            dotPos1 += speed;
+            dotPos2 += speed;
+            dotPos3 += speed;
+
+            if (dotPos1 > 165) dotPos1 = 35;
+            if (dotPos2 > 165) dotPos2 = 35;
+            if (dotPos3 > 165) dotPos3 = 35;
+
+            dot1.setAttribute('cx', dotPos1);
+            dot2.setAttribute('cx', dotPos2);
+            dot3.setAttribute('cx', dotPos3);
+
+            requestAnimationFrame(animateDroplets);
+        }
+
+        pedalSlider.addEventListener('input', updateSystem);
+
+        // Initialize
+        updateSystem();
+        animateDroplets();
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "By running the pump only at the speed needed, returnless systems prevent heating the fuel, reducing fuel evaporation canister loading.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "The PCM outputs a low-current, low-frequency command signal (e.g. 80 Hz) to the FPDM driver, which then switches the pump's high-current feed at 20 kHz.");
+    </script>
+</body>
+</html>

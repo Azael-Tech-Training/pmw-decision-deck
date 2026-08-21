@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 5: ECU Control Logic and Sensor Feedback</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .circuit-card {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        .circuit-svg {
+            width: 100%;
+            height: auto;
+            max-height: 280px;
+            display: block;
+        }
+        .wire {
+            stroke: #334155;
+            stroke-width: 3;
+            fill: none;
+            transition: stroke 0.2s ease;
+        }
+        .wire.active {
+            stroke: #ef4444;
+        }
+        .component-label {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            fill: var(--text-secondary);
+        }
+        .scope-screen {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            height: 120px;
+            width: 100%;
+            display: block;
+            margin-bottom: 1rem;
+        }
+        .scope-trace {
+            stroke: #10b981;
+            stroke-width: 2.5;
+            fill: none;
+            transition: d 0.1s ease;
+        }
+        .scope-grid {
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 1;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 600px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .fan-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .fan-blades {
+            width: 70px;
+            height: 70px;
+            fill: var(--accent);
+            transform-origin: center;
+        }
+        .control-panel {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0005 • Control Logic</div>
+        <h1>ECU Control Logic and Sensor Feedback</h1>
+        
+        <p>You have hit on a critical fundamental concept: <strong>Pure Direct Current (DC) is essentially a PWM signal running at 100% duty cycle and 0 Hz frequency.</strong> Today, we will explore why this is true, how the ECU calculates what duty cycle to output, and why the switching frequency stays constant.</p>
+
+        <h2>1. The Two Extremes: 0% and 100% Duty Cycle</h2>
+        <p>A pulse-width modulated signal is defined by its switching action. But what happens at the very bottom and the very top of the power range?</p>
+        <ul>
+            <li><strong>0% Duty Cycle:</strong> The switch is permanently open. The voltage is a flat 0V. Since there is no switching transition, there are no cycles per second, meaning the frequency is <strong>0 Hz</strong>.</li>
+            <li><strong>100% Duty Cycle:</strong> The switch is permanently closed. The voltage is a flat 12V (or 5V). Since the signal never drops low, it never completes a cycle. The frequency is <strong>0 Hz</strong>. This is pure, continuous DC voltage.</li>
+        </ul>
+        <p>Between these two extremes (e.g., 1% to 99% duty cycle), the ECU actively pulses the circuit at a set **Frequency** (number of pulses per second) to regulate the average power.</p>
+
+        <h2>2. How the ECU Calculates the Duty Cycle</h2>
+        <p>The ECU does not guess. It determines the correct duty cycle dynamically using a process called **Closed-Loop Feedback Control**. Let's use a radiator cooling fan as an example:</p>
+        <ol>
+            <li><strong>The Input (Sensor):</strong> The ECU continuously reads the **Engine Coolant Temperature (ECT)** sensor.</li>
+            <li><strong>The Target (Setpoint):</strong> The ECU has a target operating temperature programmed into its memory (e.g., 90°C).</li>
+            <li><strong>The Calculation (Error):</strong> The ECU subtracts the target temperature from the actual temperature to calculate the **Error**.</li>
+            <li><strong>The Map Lookup (Output):</strong> The ECU refers to a 2D look-up table (or "map") in its code. For example:
+                <ul>
+                    <li>Under 85°C: Output **0% Duty Cycle** (Fan is OFF).</li>
+                    <li>At 90°C: Output **30% Duty Cycle** (Fan runs quietly).</li>
+                    <li>At 100°C: Output **75% Duty Cycle** (Fan runs fast).</li>
+                    <li>Over 110°C: Output **100% Duty Cycle** (Fan runs full blast).</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>3. Why is Frequency Kept Constant?</h2>
+        <p>While the **Duty Cycle** changes constantly to regulate fan speed, the switching **Frequency** (e.g., 150 Hz) remains **Fixed**. The ECU does not change the frequency on the fly. Why?</p>
+        <p>Because the frequency is selected by engineers to match the physical design of the actuator and driver circuit. A frequency that is too low causes the motor to vibrate and hum loudly. A frequency that is too high causes the transistor switch (MOSFET) to generate excessive heat due to switching losses. Once chosen, the frequency stays constant, and only the width of the pulse is adjusted.</p>
+
+        <!-- Interactive Closed Loop Controller -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Interactive ECU Closed-Loop Simulator</span>
+                <span style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">ECU SIMULATION</span>
+            </div>
+
+            <!-- Stats Readouts -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Coolant Temp</div>
+                    <div class="stat-val" id="valTemp">75°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Target Temp</div>
+                    <div class="stat-val">90°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ECU Duty Cycle</div>
+                    <div class="stat-val" id="valDuty">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Frequency</div>
+                    <div class="stat-val" id="valFreq">0 Hz</div>
+                </div>
+            </div>
+
+            <!-- Scope Screen -->
+            <svg class="scope-screen" viewBox="0 0 400 120">
+                <!-- Background Grid -->
+                <line x1="0" y1="20" x2="400" y2="20" class="scope-grid"/>
+                <line x1="0" y1="60" x2="400" y2="60" class="scope-grid"/>
+                <line x1="0" y1="100" x2="400" y2="100" class="scope-grid"/>
+                <line x1="100" y1="0" x2="100" y2="120" class="scope-grid"/>
+                <line x1="200" y1="0" x2="200" y2="120" class="scope-grid"/>
+                <line x1="300" y1="0" x2="300" y2="120" class="scope-grid"/>
+                
+                <!-- Trace -->
+                <path d="M 0 100 L 400 100" class="scope-trace" id="scopeTrace"/>
+                <text x="10" y="30" fill="#10b981" font-family="monospace" font-size="10" font-weight="bold">12V</text>
+                <text x="10" y="110" fill="#10b981" font-family="monospace" font-size="10" font-weight="bold">0V</text>
+            </svg>
+
+            <!-- Fan Visual -->
+            <div class="fan-container">
+                <svg viewBox="0 0 100 100" style="width: 80px; height: 80px;">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="3"/>
+                    <g id="fanBlades" class="fan-blades">
+                        <!-- 4 blades -->
+                        <path d="M 50 50 C 40 30, 45 10, 50 10 C 55 10, 60 30, 50 50 Z"/>
+                        <path d="M 50 50 C 70 40, 90 45, 90 50 C 90 55, 70 60, 50 50 Z"/>
+                        <path d="M 50 50 C 60 70, 55 90, 50 90 C 45 90, 40 70, 50 50 Z"/>
+                        <path d="M 50 50 C 30 60, 10 55, 10 50 C 10 45, 30 40, 50 50 Z"/>
+                    </g>
+                    <circle cx="50" cy="50" r="8" fill="#f3f4f6"/>
+                </svg>
+            </div>
+
+            <!-- Controller Slider -->
+            <div class="control-panel">
+                <label for="tempSlider" style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary);">
+                    Adjust Engine Coolant Temperature Sensor:
+                </label>
+                <div class="slider-container">
+                    <span style="font-size: 0.85rem; font-family: var(--font-mono);">75°C</span>
+                    <input type="range" id="tempSlider" min="75" max="115" value="75" style="width: 100%;">
+                    <span style="font-size: 0.85rem; font-family: var(--font-mono);">115°C</span>
+                </div>
+            </div>
+        </div>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>Why is the PWM switching frequency typically kept constant while the duty cycle changes?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">It matches the component design to prevent electromagnetic interference.</button>
+                <button class="quiz-option" data-correct="false">It allows primary battery charging systems balance electrical currents.</button>
+                <button class="quiz-option" data-correct="false">It compels diagnostic feedback sensors to record measurements instantly.</button>
+                <button class="quiz-option" data-correct="false">It forces internal vehicle microcontrollers running at highest velocity.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>Which sensor input does an ECU primarily use to determine the radiator fan's PWM duty cycle?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The engine coolant temperature sensor.</button>
+                <button class="quiz-option" data-correct="false">The central intake temperature sensor.</button>
+                <button class="quiz-option" data-correct="false">The absolute manifold pressure sensor.</button>
+                <button class="quiz-option" data-correct="false">The battery charging current voltages.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0004-how-shorts-blow-fuses.html" class="footer-link">← Previous Lesson (Fuse Physics)</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Diagnostics Lesson →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Next Step:</strong> Drag the slider in the simulator. Observe the scope trace change from a flat 0V line, to active pulses at 150 Hz, to a flat 12V line at 100% duty cycle!
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const tempSlider = document.getElementById('tempSlider');
+        const valTemp = document.getElementById('valTemp');
+        const valDuty = document.getElementById('valDuty');
+        const valFreq = document.getElementById('valFreq');
+        
+        const scopeTrace = document.getElementById('scopeTrace');
+        const fanBlades = document.getElementById('fanBlades');
+
+        const FIXED_FREQ = 150; // 150 Hz
+        let fanRotation = 0;
+        let animationFrameId = null;
+        let currentSpeed = 0; // Speed modifier for fan rotation
+
+        function calculateDutyCycle(temp) {
+            // Under 85°C -> 0%
+            // 85 to 110°C -> linear ramp from 0% to 100%
+            // Over 110°C -> 100%
+            if (temp < 85) return 0;
+            if (temp > 110) return 100;
+            return Math.round(((temp - 85) / 25) * 100);
+        }
+
+        function drawTrace(duty) {
+            if (duty === 0) {
+                scopeTrace.setAttribute('d', 'M 0 100 L 400 100');
+                valFreq.textContent = "0 Hz";
+                return;
+            }
+            if (duty === 100) {
+                scopeTrace.setAttribute('d', 'M 0 20 L 400 20');
+                valFreq.textContent = "0 Hz";
+                return;
+            }
+
+            valFreq.textContent = `${FIXED_FREQ} Hz`;
+            
+            // Build a square wave trace based on duty cycle percentage
+            // Screen is 400px wide. We will show 4 complete cycles.
+            // Each cycle is 100px wide.
+            const cycleWidth = 100;
+            const highWidth = (duty / 100) * cycleWidth;
+            const lowWidth = cycleWidth - highWidth;
+            
+            let dString = `M 0 100`;
+            for (let i = 0; i < 4; i++) {
+                const startX = i * cycleWidth;
+                dString += ` L ${startX} 20 L ${startX + highWidth} 20 L ${startX + highWidth} 100 L ${startX + cycleWidth} 100`;
+            }
+            scopeTrace.setAttribute('d', dString);
+        }
+
+        function animateFan() {
+            fanRotation += currentSpeed;
+            fanBlades.style.transform = `rotate(${fanRotation}deg)`;
+            animationFrameId = requestAnimationFrame(animateFan);
+        }
+
+        function updateECU() {
+            const temp = parseInt(tempSlider.value);
+            const duty = calculateDutyCycle(temp);
+            
+            // Update Text
+            valTemp.textContent = `${temp}°C`;
+            valDuty.textContent = `${duty}%`;
+
+            // Draw Scope
+            drawTrace(duty);
+
+            // Adjust Fan Speed
+            currentSpeed = (duty / 100) * 12; // max 12 deg per frame rotation
+        }
+
+        tempSlider.addEventListener('input', updateECU);
+
+        // Initialize
+        updateECU();
+        animateFan();
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "Automotive engineers select a fixed switching frequency to match component electromagnetic characteristics, while modifying the duty cycle dynamically to adjust output power.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "The Engine Coolant Temperature (ECT) sensor provides the primary feedback loop to the ECU for regulating fan speed via PWM commands.");
+    </script>
+</body>
+</html>

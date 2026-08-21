@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --slidev-theme-primary: #3b82f6;
+}
+
+:root {
+  --bg: #0b0f19;
+  --bg-primary: #0b0f19;
+  --bg-secondary: #131a2b;
+  --bg-tertiary: #1b253c;
+  --fg: #f3f4f6;
+  --fg-secondary: #9ca3af;
+  --fg-muted: #6b7280;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+html {
+  background-color: var(--bg) !important;
+}
+
+body {
+  background-color: var(--bg) !important;
+  color: var(--fg) !important;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+.slidev-layout {
+  background-color: var(--bg) !important;
+  color: var(--fg) !important;
+}
+
+h1 {
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+h2 {
+  color: #e0e7ff !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 0.5rem !important;
+}
+
+h3 {
+  color: var(--fg) !important;
+}
+
+p {
+  color: var(--fg-secondary) !important;
+}
+
+strong {
+  color: var(--fg) !important;
+}
+
+code {
+  font-family: 'JetBrains Mono', monospace !important;
+  background-color: var(--bg-tertiary) !important;
+  color: #f43f5e !important;
+}
+
+pre {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+}
+
+pre code {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+a {
+  color: var(--accent) !important;
+}
+
+a:hover {
+  color: var(--accent-hover) !important;
+}
+
+table {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+th {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--fg) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+td {
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--fg-secondary) !important;
+}
+
+blockquote {
+  border-left: 4px solid var(--accent) !important;
+  background-color: rgba(59, 130, 246, 0.06) !important;
+  padding: 1rem !important;
+  border-radius: 0 12px 12px 0 !important;
+  color: var(--fg-secondary) !important;
+}
+
+.slidev-vclick-target {
+  transition: all 0.2s ease !important;
+}
+
+.slidev-vclick-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 6: How Low-Side Switching Controls Flow</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .split-sim {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 760px) {
+            .split-sim {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .sim-panel {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            position: relative;
+        }
+        .sim-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .sim-svg {
+            width: 100%;
+            height: auto;
+            max-height: 160px;
+            display: block;
+        }
+        .water-flow {
+            fill: none;
+            stroke: #38bdf8;
+            stroke-width: 8;
+            stroke-linecap: round;
+            opacity: 0.15;
+            transition: opacity 0.2s ease;
+        }
+        .water-flow.active {
+            opacity: 1;
+            stroke-dasharray: 10, 10;
+            animation: flow-anim 1s linear infinite;
+        }
+        .wire {
+            stroke: #334155;
+            stroke-width: 4;
+            fill: none;
+            transition: stroke 0.2s ease;
+        }
+        .wire.energized {
+            stroke: #ef4444; /* +12V */
+        }
+        .wire.grounded {
+            stroke: #3b82f6; /* Ground */
+        }
+        .wire.flow-active {
+            stroke-dasharray: 8, 8;
+            animation: flow-anim 1s linear infinite;
+        }
+        @keyframes flow-anim {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+        .pressure-indicator {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            fill: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0006 • Circuit Dynamics</div>
+        <h1>How Low-Side Switching Controls Flow</h1>
+        
+        <p>A common point of confusion is how a switch placed on the <strong>ground side (low-side)</strong> of a component can control current when conventional current flows from positive ($+$) to ground ($-$). If current is flowing "downward" from positive, shouldn't the load be powered constantly if it is wired to the positive terminal? Today, we will clear this up using the <strong>Series Loop Rule</strong> and the <strong>Garden Hose Analogy</strong>.</p>
+
+        <h2>1. The Loop Rule: Current Requires a Complete Circuit</h2>
+        <p>In electronics, current is the movement of charge around a closed path. For current to flow at all, a complete, unbroken loop must exist from the battery's positive terminal, through the wiring and components, and all the way back to the negative terminal (ground).</p>
+        <p>If you break the loop **anywhere**, current stops flowing **everywhere** in that circuit. It does not matter if the break is at the very beginning of the circuit (high-side) or the very end (low-side). Once the path is severed, the chemical reaction inside the battery cannot push electrons anymore because there is nowhere for them to go.</p>
+
+        <h2>2. The Garden Hose Analogy</h2>
+        <p>Think of an electrical circuit like a garden hose connected to a water spigot:</p>
+        <ul>
+            <li><strong>The Spigot (Battery +):</strong> Provides the pressure (voltage).</li>
+            <li><strong>The Hose (Wires):</strong> Carries the flow.</li>
+            <li><strong>The Sprinkler Wheel (Load/Fan):</strong> The device that uses the flow's energy to spin.</li>
+            <li><strong>The Drain (Chassis Ground -):</strong> Where the water ends up.</li>
+        </ul>
+        <p>If you want to turn the sprinkler off, you have two choices:</p>
+        <ol>
+            <li><strong>High-Side Control:</strong> Turn off the valve at the spigot. The hose loses pressure and the sprinkler stops.</li>
+            <li><strong>Low-Side Control:</strong> Close a valve/nozzle at the <strong>end</strong> of the hose, after the sprinkler. Water is still present in the hose under pressure, but because the water cannot exit the nozzle into the drain, the entire flow stops. The sprinkler wheel stays idle.</li>
+        </ol>
+        <p>The ECU uses **Low-Side Control** because N-channel MOSFET transistors act as highly efficient ground-side nozzles. When the transistor closes, it lets water escape to the drain, and the sprinkler spins. When the transistor opens, it blocks the drain, stopping all flow.</p>
+
+        <!-- Interactive Side-by-Side Simulator -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Side-by-Side Flow Comparison</span>
+                <span style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">FLUID VS ELECTRICAL</span>
+            </div>
+
+            <div class="split-sim">
+                <!-- Water Hose Panel -->
+                <div class="sim-panel">
+                    <div class="sim-title">
+                        <span>1. Garden Hose</span>
+                        <span id="txtWaterState" style="color: #38bdf8;">FLOW STOPPED</span>
+                    </div>
+                    <svg class="sim-svg" viewBox="0 0 200 100">
+                        <!-- Spigot (Power source) -->
+                        <rect x="10" y="30" width="20" height="20" fill="#64748b"/>
+                        <path d="M 25 40 L 40 40" stroke="#64748b" stroke-width="6"/>
+                        <text x="10" y="25" class="component-label">Spigot (+)</text>
+
+                        <!-- Hose Loop through Sprinkler (Load) -->
+                        <path d="M 40 40 L 80 40" class="water-flow" id="waterFlow1"/>
+                        <circle cx="95" cy="40" r="15" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="95" y="44" font-size="10" fill="#fff" text-anchor="middle" font-weight="bold">WHEEL</text>
+                        <path d="M 110 40 L 150 40" class="water-flow" id="waterFlow2"/>
+
+                        <!-- Nozzle (Switch) -->
+                        <g transform="translate(150, 30)">
+                            <rect x="0" y="5" width="10" height="10" fill="#f59e0b" id="waterValve"/>
+                            <text x="5" y="-5" class="component-label" text-anchor="middle">Nozzle (-)</text>
+                        </g>
+
+                        <path d="M 160 40 L 180 40" class="water-flow" id="waterFlow3"/>
+                        <!-- Drain (Ground) -->
+                        <rect x="180" y="35" width="15" height="15" fill="#334155"/>
+                        <text x="187" y="25" class="component-label" text-anchor="middle">Drain</text>
+                    </svg>
+                </div>
+
+                <!-- Electric Panel -->
+                <div class="sim-panel">
+                    <div class="sim-title">
+                        <span>2. Electric Circuit</span>
+                        <span id="txtElectricState" style="color: #ef4444;">FLOW STOPPED</span>
+                    </div>
+                    <svg class="sim-svg" viewBox="0 0 200 100">
+                        <!-- Battery -->
+                        <rect x="10" y="30" width="20" height="20" fill="#f43f5e"/>
+                        <text x="10" y="25" class="component-label">Battery (+)</text>
+
+                        <!-- Wires -->
+                        <path d="M 30 40 L 80 40" class="wire" id="elecWire1"/>
+                        <circle cx="95" cy="40" r="15" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="95" y="44" font-size="10" fill="#fff" text-anchor="middle" font-weight="bold">FAN</text>
+                        <path d="M 110 40 L 150 40" class="wire" id="elecWire2"/>
+
+                        <!-- MOSFET Switch -->
+                        <g transform="translate(150, 30)">
+                            <line x1="0" y1="10" x2="10" y2="0" stroke="#fff" stroke-width="2" id="elecSwitch"/>
+                            <text x="5" y="-5" class="component-label" text-anchor="middle">MOSFET (-)</text>
+                        </g>
+
+                        <path d="M 160 40 L 180 40" class="wire" id="elecWire3"/>
+                        <!-- Chassis Ground -->
+                        <path d="M 180 40 L 195 40 M 185 45 L 195 45 M 189 50 L 191 50" stroke="#fff" stroke-width="2"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="sim-btn-group" style="justify-content: center;">
+                <button class="sim-btn" id="btnToggleFlow">Open Valve / Close MOSFET</button>
+            </div>
+
+            <div class="circuit-desc" id="circuitDesc">
+                Toggle the switch to see the flow. Notice that when the switch is open (valve closed), pressure and voltage exist in the lines leading up to the switch, but **zero current/water flows through the load**. Low-side control is 100% effective at stopping flow!
+            </div>
+        </div>
+
+        <h2>Summary: The Pull-Up State</h2>
+        <p>In a low-side circuit, when the MOSFET is open (OFF), the wire between the load and the MOSFET is connected to +12V through the load itself. A voltmeter probing this wire will read 12V because the voltage "pulls up" through the motor coils. Only when the ECU completes the path to ground does this voltage drop to 0V as current flows through the loop.</p>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>In a series circuit, what happens to current flow when a switch on the ground side is opened?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">Current ceases flowing through the entire circuit loop.</button>
+                <button class="quiz-option" data-correct="false">Voltage spikes upward across the active terminal posts.</button>
+                <button class="quiz-option" data-correct="false">Electrons flow backward into the positive source lines.</button>
+                <button class="quiz-option" data-correct="false">Current continues entering the load from power sources.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>Using the garden hose analogy, which part represents the low-side switch?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The nozzle valve at the port.</button>
+                <button class="quiz-option" data-correct="false">The faucet valve at the wall.</button>
+                <button class="quiz-option" data-correct="false">The bypass valve at the pump.</button>
+                <button class="quiz-option" data-correct="false">The rubber hose in the grass.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0005-ecu-control-logic.html" class="footer-link">← Previous Lesson (ECU Logic)</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Diagnostics Lesson →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Got questions?</strong> You are the student and the control loops are yours to conquer. Ask your teacher about low-side mechanics, voltage pull-up, or current loops!
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const btnToggleFlow = document.getElementById('btnToggleFlow');
+        const txtWaterState = document.getElementById('txtWaterState');
+        const txtElectricState = document.getElementById('txtElectricState');
+        const circuitDesc = document.getElementById('circuitDesc');
+        
+        const waterFlow1 = document.getElementById('waterFlow1');
+        const waterFlow2 = document.getElementById('waterFlow2');
+        const waterFlow3 = document.getElementById('waterFlow3');
+        const waterValve = document.getElementById('waterValve');
+
+        const elecWire1 = document.getElementById('elecWire1');
+        const elecWire2 = document.getElementById('elecWire2');
+        const elecWire3 = document.getElementById('elecWire3');
+        const elecSwitch = document.getElementById('elecSwitch');
+
+        let isFlowActive = false;
+
+        function updateSim() {
+            if (isFlowActive) {
+                btnToggleFlow.textContent = "Close Valve / Open MOSFET";
+                btnToggleFlow.classList.add('active');
+                
+                // Water active states
+                txtWaterState.textContent = "WATER FLOWING";
+                txtWaterState.style.color = "#4ade80";
+                waterFlow1.className.baseVal = "water-flow active";
+                waterFlow2.className.baseVal = "water-flow active";
+                waterFlow3.className.baseVal = "water-flow active";
+                waterValve.setAttribute('fill', '#4ade80');
+
+                // Electric active states
+                txtElectricState.textContent = "CURRENT FLOWING";
+                txtElectricState.style.color = "#4ade80";
+                elecWire1.className.baseVal = "wire energized flow-active";
+                elecWire2.className.baseVal = "wire energized flow-active";
+                elecWire3.className.baseVal = "wire grounded flow-active";
+                elecSwitch.setAttribute('x2', '10');
+                elecSwitch.setAttribute('y2', '10');
+                elecSwitch.setAttribute('stroke', '#4ade80');
+                
+                circuitDesc.innerHTML = "<strong>Flow Active (Switch Closed / Valve Open):</strong> The loop is complete! Current flows from battery (+), through the fan, through the low-side switch to ground (-). Water flows from spigot, through the wheel, through the nozzle to the drain. Both systems operate!";
+            } else {
+                btnToggleFlow.textContent = "Open Valve / Close MOSFET";
+                btnToggleFlow.classList.remove('active');
+                
+                // Water inactive states
+                txtWaterState.textContent = "FLOW STOPPED";
+                txtWaterState.style.color = "#38bdf8";
+                waterFlow1.className.baseVal = "water-flow";
+                waterFlow2.className.baseVal = "water-flow";
+                waterFlow3.className.baseVal = "water-flow";
+                waterValve.setAttribute('fill', '#f59e0b');
+
+                // Electric inactive states
+                txtElectricState.textContent = "FLOW STOPPED";
+                txtElectricState.style.color = "#f43f5e";
+                elecWire1.className.baseVal = "wire energized";
+                elecWire2.className.baseVal = "wire energized"; // pulls up to 12V through fan coils
+                elecWire3.className.baseVal = "wire grounded";
+                elecSwitch.setAttribute('x2', '10');
+                elecSwitch.setAttribute('y2', '0');
+                elecSwitch.setAttribute('stroke', '#fff');
+                
+                circuitDesc.innerHTML = "<strong>Flow Bypassed/Stopped (Switch Open / Valve Closed):</strong> Even though pressure/voltage is present all the way up to the nozzle/MOSFET, the closed path is blocked. No current flows through the load. The system is completely shut off.";
+            }
+        }
+
+        btnToggleFlow.addEventListener('click', () => {
+            isFlowActive = !isFlowActive;
+            updateSim();
+        });
+
+        updateSim();
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "Because a circuit is a loop, breaking the path at any point (power or ground side) immediately stops current flow everywhere.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "In a low-side setup, the switch sits at the end of the line, acting like a nozzle at the end of a pressurized garden hose.");
+    </script>
+</body>
+</html>

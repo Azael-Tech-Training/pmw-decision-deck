@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 1: Pulse Width Modulation & Automotive Control</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0001 • Foundational Theory</div>
+        <h1>PWM & The Evolution of Automotive Control</h1>
+        
+        <p>In modern vehicles, electricity does far more than turn devices simple "on" or "off." It precisely controls the speed of fuel pumps, the cooling rate of radiator fans, the brightness of instrument clusters, and the positioning of fuel injectors. To understand how cars achieve this, we must first look at where they started.</p>
+
+        <h2>The Old Way: Resistor Packs & Dissipated Heat</h2>
+        <p>Before modern computers controlled cars, varying the speed of an electric component (like a cabin blower fan) was done using <strong>series resistors</strong>. If you wanted the blower fan to run at "Low" speed, the switch routed the current through a series of heavy resistors. These resistors restricted current flow, dropping the voltage reaching the fan motor.</p>
+        
+        <div class="callout warning">
+            <div class="callout-title">⚠️ The Critical Efficiency Flaw</div>
+            <p>Resistors control speed by converting unwanted electrical energy into <strong>heat</strong>. In older cars, cabin blower resistor packs had to be placed directly inside the ventilation air duct so that the incoming air could cool them down. If the fan stopped blowing, the resistors would overheat and burn out, leaving the blower motor functional only on "High" speed (which bypassed the resistors entirely).</p>
+        </div>
+
+        <h2>The Modern Way: Pulse Width Modulation (PWM)</h2>
+        <p>Modern vehicles use solid-state transistors (typically MOSFETs) within the Engine Control Unit (ECU) or specialized driver modules to vary power. Instead of placing a resistive restriction in the circuit, the transistor acts as an ultra-fast switch, turning the power supply fully <strong>ON</strong> and fully <strong>OFF</strong> thousands of times per second.</p>
+        
+        <ul>
+            <li><strong>When the switch is ON:</strong> The resistance is near zero, meaning no voltage drop across the switch and minimal heat generated.</li>
+            <li><strong>When the switch is OFF:</strong> No current flows, meaning zero energy is consumed and zero heat is generated.</li>
+        </ul>
+        
+        <p>By varying the ratio of "on-time" to "off-time," the ECU controls the <strong>average voltage</strong> received by the actuator without wasting power as heat. This is <strong>Pulse Width Modulation (PWM)</strong>.</p>
+
+        <h2>Key Parameters of a PWM Signal</h2>
+        <p>A PWM signal is characterized by three core metrics:</p>
+        <ol>
+            <li><strong>Duty Cycle:</strong> The percentage of time the signal is ON during one complete cycle. A 0% duty cycle is fully off; 100% is fully on.</li>
+            <li><strong>Period ($T$):</strong> The total time it takes to complete one ON/OFF cycle.</li>
+            <li><strong>Frequency ($f$):</strong> How many cycles occur per second ($f = 1/T$), measured in Hertz (Hz).</li>
+        </ol>
+
+        <!-- Interactive PWM Simulator Widget -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Interactive PWM Simulator</span>
+                <span style="font-size: 0.8rem; color: var(--accent);">V_source = 12.0 V</span>
+            </div>
+            
+            <div class="sim-controls">
+                <div class="control-group">
+                    <label for="dutySlider">Duty Cycle (Pulse Width)</label>
+                    <div class="slider-container">
+                        <input type="range" id="dutySlider" min="0" max="100" value="50">
+                        <span class="control-val" id="dutyVal">50%</span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="freqSlider">Frequency (Cycles/Sec)</label>
+                    <div class="slider-container">
+                        <input type="range" id="freqSlider" min="1" max="100" value="20">
+                        <span class="control-val" id="freqVal">20 Hz</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sim-output">
+                <div class="scope-container">
+                    <canvas id="scopeCanvas"></canvas>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-success); margin-top: 5px; display: flex; justify-content: space-between;">
+                        <span id="avgVoltageText">Average V: 6.00 V</span>
+                        <span>Scale: 5ms/div</span>
+                    </div>
+                </div>
+                
+                <div class="demo-component">
+                    <div style="font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);">Actuator Status</div>
+                    
+                    <!-- Fan Icon (spins based on PWM) -->
+                    <svg class="fan-icon" id="fanIcon" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v4h-2V7zm0 6h2v4h-2v-4z"/>
+                        <path d="M12 11c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1s-1 .45-1 1v5c0 .55.45 1 1 1zm0 2c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1s1-.45 1-1v-5c0-.55-.45-1-1-1zm-3-2c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1s-1 .45-1 1v1c0 .55.45 1 1 1zm6 2c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1s1-.45 1-1v-1c0-.55-.45-1-1-1z" opacity="0.3"/>
+                        <circle cx="12" cy="12" r="1.5"/>
+                        <!-- Custom Blade drawing inside SVG to make it spin nicely -->
+                        <g id="fanBlades">
+                            <path d="M12 12 l-4 -4 a 3 3 0 0 1 0 -4.24 l 0 0 a 3 3 0 0 1 4.24 0 z" fill="#3b82f6"/>
+                            <path d="M12 12 l4 4 a 3 3 0 0 1 0 4.24 l 0 0 a 3 3 0 0 1 -4.24 0 z" fill="#3b82f6"/>
+                            <path d="M12 12 l4 -4 a 3 3 0 0 1 4.24 0 l 0 0 a 3 3 0 0 1 0 4.24 z" fill="#3b82f6"/>
+                            <path d="M12 12 l-4 4 a 3 3 0 0 1 -4.24 0 l 0 0 a 3 3 0 0 1 0 -4.24 z" fill="#3b82f6"/>
+                        </g>
+                    </svg>
+                    
+                    <!-- Light Bulb Icon (glows based on PWM) -->
+                    <svg class="bulb-icon" id="bulbIcon" viewBox="0 0 24 24">
+                        <path d="M12 2C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1c-.37.26-.59.68-.59 1.14V16h-4.52v-1.77c0-.46-.22-.88-.59-1.14C8.01 12.3 7 10.73 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.73-1.01 3.3-2.15 4.1zM9 20h6v1H9z"/>
+                        <circle cx="12" cy="9" r="2.5" fill="#f59e0b" id="bulbFilament" opacity="0"/>
+                    </svg>
+                    
+                    <div id="simStats" style="font-size: 0.75rem; text-align: center; color: var(--text-secondary);">
+                        Duty: 50% | Motor: Medium
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="callout tip">
+            <div class="callout-title">💡 Frequency vs Human Perception</div>
+            <p>Try reducing the Frequency slider in the simulator to 2-5 Hz. Notice how the light bulb flickers and the fan pulses unevenly? At low frequencies, the on/off intervals are long enough to see and feel. In cars, we run PWM frequencies between <strong>100 Hz and 20 kHz</strong>. This makes the switching completely invisible to human eyes and smooths out the rotational inertia of motors, making the fan speed feel perfectly continuous.</p>
+        </div>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>If a vehicle's 12-volt radiator fan is controlled by a PWM signal with a 40% duty cycle, what is the average voltage delivered to the fan?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="false">The average voltage is 2.4 volts.</button>
+                <button class="quiz-option" data-correct="true">The average voltage is 4.8 volts.</button>
+                <button class="quiz-option" data-correct="false">The average voltage is 6.0 volts.</button>
+                <button class="quiz-option" data-correct="false">The average voltage is 9.6 volts.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>What was the primary engineering reason car manufacturers replaced series resistors with PWM control for blowers and fans?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">To reduce thermal energy and boost electrical efficiency.</button>
+                <button class="quiz-option" data-correct="false">To lower manufacturing costs and simplify system layouts.</button>
+                <button class="quiz-option" data-correct="false">To increase maximum output and prolong battery lifetimes.</button>
+                <button class="quiz-option" data-correct="false">To prevent electromagnetic noise and reduce signal delay.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="../MISSION.md" class="footer-link">🎯 View Mission</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../RESOURCES.md" class="footer-link">📚 View Resources</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Next Step:</strong> Complete the quiz above, then ask me to explain how the ECU's internal transistors switch these loads, or request the next lesson on <strong>low-side vs. high-side switching</strong>.
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const dutySlider = document.getElementById('dutySlider');
+        const freqSlider = document.getElementById('freqSlider');
+        const dutyVal = document.getElementById('dutyVal');
+        const freqVal = document.getElementById('freqVal');
+        const canvas = document.getElementById('scopeCanvas');
+        const ctx = canvas.getContext('2d');
+        const avgVoltageText = document.getElementById('avgVoltageText');
+        
+        const fanBlades = document.getElementById('fanBlades');
+        const bulbIcon = document.getElementById('bulbIcon');
+        const bulbFilament = document.getElementById('bulbFilament');
+        const simStats = document.getElementById('simStats');
+
+        // Setup high-DPI canvas
+        function setupCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = 150 * window.devicePixelRatio;
+            canvas.style.height = '150px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        window.addEventListener('resize', setupCanvas);
+        setupCanvas();
+
+        let fanAngle = 0;
+        let lastTime = performance.now();
+
+        function drawScopeAndAnimate() {
+            const now = performance.now();
+            const deltaTime = (now - lastTime) / 1000; // seconds
+            lastTime = now;
+
+            const duty = parseFloat(dutySlider.value);
+            const freq = parseFloat(freqSlider.value);
+            
+            // 1. Update text displays
+            dutyVal.textContent = `${duty}%`;
+            freqVal.textContent = `${freq} Hz`;
+            const avgV = (12 * (duty / 100)).toFixed(2);
+            avgVoltageText.textContent = `Average V: ${avgV} V`;
+
+            // 2. Update fan rotation
+            // Rotate speed proportional to duty cycle
+            // Use frequency to introduce a slight pulsing at low frequencies
+            let pulseFactor = 1.0;
+            if (freq < 15) {
+                // Modulate speed by a sine wave matching the frequency
+                const wave = Math.sin(2 * Math.PI * freq * (now / 1000));
+                // If duty cycle is active, simulate rotational jerking at low Hz
+                pulseFactor = (wave > (1 - 2 * (duty/100))) ? 1.2 : 0.2;
+                if (duty === 0) pulseFactor = 0;
+            }
+            
+            const speed = (duty / 100) * 720 * pulseFactor; // deg/sec
+            fanAngle = (fanAngle + speed * deltaTime) % 360;
+            fanBlades.setAttribute('transform', `rotate(${fanAngle} 12 12)`);
+
+            // 3. Update light bulb intensity
+            let bulbIntensity = duty / 100;
+            if (freq < 25) {
+                // If frequency is very low, let the bulb blink or flicker
+                const phase = (now / 1000) * freq;
+                const fraction = phase % 1.0;
+                bulbIntensity = fraction < (duty / 100) ? 1.0 : 0.0;
+            }
+            
+            if (bulbIntensity > 0) {
+                const glowSize = Math.round(bulbIntensity * 15);
+                bulbIcon.style.fill = `rgb(${Math.round(30 + bulbIntensity * 225)}, ${Math.round(41 + bulbIntensity * 117)}, ${Math.round(59 - bulbIntensity * 40)})`;
+                bulbIcon.style.filter = `drop-shadow(0 0 ${glowSize}px rgba(245, 158, 11, ${bulbIntensity}))`;
+                bulbFilament.style.opacity = bulbIntensity;
+            } else {
+                bulbIcon.style.fill = '#1e293b';
+                bulbIcon.style.filter = 'none';
+                bulbFilament.style.opacity = 0;
+            }
+
+            // Update stats text
+            let speedDesc = "Off";
+            if (duty > 0) speedDesc = duty > 75 ? "High" : duty > 45 ? "Medium" : "Low";
+            simStats.innerHTML = `Duty: ${duty}% | Motor Speed: ${speedDesc}`;
+
+            // 4. Draw Oscilloscope Screen
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#0a220b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            // Vertical divisions
+            const divisionsX = 10;
+            for (let i = 1; i < divisionsX; i++) {
+                const x = (w / divisionsX) * i;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+            }
+            // Horizontal divisions
+            const divisionsY = 6;
+            for (let i = 1; i < divisionsY; i++) {
+                const y = (h / divisionsY) * i;
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+
+            // Draw signal line
+            ctx.strokeStyle = '#10b981'; // green line
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#10b981';
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'miter';
+            ctx.beginPath();
+
+            const yLow = h * 0.8;
+            const yHigh = h * 0.2;
+            const timeScale = 0.05; // 50ms total width shown on screen
+
+            // We will trace the PWM wave across the x-axis (0 to w)
+            // Time at x=0 is 'now/1000' for roll mode, or 0 for triggered mode.
+            // Let's use stable triggered mode: wave always starts rising at x=0.
+            const periodSec = 1 / freq;
+            const screenTimeSpan = 0.05; // 50 milliseconds total display window
+
+            let lastY = null;
+            for (let x = 0; x < w; x++) {
+                // Calculate time corresponding to this pixel
+                const t = (x / w) * screenTimeSpan;
+                const phase = t / periodSec;
+                const cycleFraction = phase % 1.0;
+                
+                const val = cycleFraction < (duty / 100) ? 1 : 0;
+                const y = val === 1 ? yHigh : yLow;
+
+                if (x === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    if (lastY !== null && lastY !== y) {
+                        // Draw vertical transition edge
+                        ctx.lineTo(x, lastY);
+                    }
+                    ctx.lineTo(x, y);
+                }
+                lastY = y;
+            }
+            ctx.stroke();
+
+            // Reset shadow parameters for other drawings
+            ctx.shadowBlur = 0;
+
+            requestAnimationFrame(drawScopeAndAnimate);
+        }
+
+        dutySlider.addEventListener('input', () => {});
+        freqSlider.addEventListener('input', () => {});
+
+        requestAnimationFrame(drawScopeAndAnimate);
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return; // quiz completed
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = "Correct! Spot on. The average voltage is simply the source voltage (12V) multiplied by the duty cycle (40%), which equals 4.8V.";
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = "Incorrect. Let's think: The average voltage equals source voltage (12V) times the duty cycle (40%). 12 * 0.40 = 4.8 volts.";
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1');
+
+        // Modify Question 2 script to match Question 2 details
+        const options2 = document.querySelectorAll('#quiz2 .quiz-option');
+        const submitBtn2 = document.getElementById('submit2');
+        const feedbackDiv2 = document.getElementById('feedback2');
+        let selectedOption2 = null;
+
+        options2.forEach(opt => {
+            opt.addEventListener('click', () => {
+                if (submitBtn2.disabled && feedbackDiv2.textContent !== "") return;
+                
+                options2.forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                selectedOption2 = opt;
+                submitBtn2.disabled = false;
+            });
+        });
+
+        submitBtn2.addEventListener('click', () => {
+            if (!selectedOption2) return;
+
+            const isCorrect = selectedOption2.getAttribute('data-correct') === 'true';
+            
+            options2.forEach(o => {
+                o.disabled = true;
+                if (o.getAttribute('data-correct') === 'true') {
+                    o.classList.add('correct');
+                } else if (o === selectedOption2) {
+                    o.classList.add('incorrect');
+                }
+            });
+
+            submitBtn2.disabled = true;
+
+            if (isCorrect) {
+                feedbackDiv2.textContent = "Correct! Solid understanding. By eliminating series resistance, we stop wasting energy as heat. This protects electrical parts and improves fuel/electrical efficiency.";
+                feedbackDiv2.className = "quiz-feedback success";
+            } else {
+                feedbackDiv2.textContent = "Incorrect. Series resistors control speed by restricting current and releasing the excess as heat. Switching to PWM avoids this thermal loss and boosts efficiency.";
+                feedbackDiv2.className = "quiz-feedback error";
+            }
+        });
+    </script>
+</body>
+</html>

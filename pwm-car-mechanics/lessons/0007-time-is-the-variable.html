@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 7: How the ECU Changes Duty Cycle (Time is the Variable)</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .sim-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 760px) {
+            .sim-grid {
+                grid-template-columns: 1.2fr 1fr;
+            }
+        }
+        .time-bar-container {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .time-bar-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+        .time-bar {
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .time-on {
+            background-color: var(--accent-success);
+            height: 100%;
+            transition: width 0.15s ease;
+        }
+        .time-off {
+            background-color: #f43f5e;
+            height: 100%;
+            transition: width 0.15s ease;
+        }
+        .fan-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .fan-blades {
+            width: 80px;
+            height: 80px;
+            fill: var(--accent);
+            transform-origin: center;
+        }
+        .indicator-bulb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #334155;
+            margin-top: 1rem;
+            border: 2px solid var(--border-color);
+            transition: background-color 0.05s ease, box-shadow 0.05s ease;
+        }
+        .indicator-bulb.active {
+            background-color: #10b981;
+            box-shadow: 0 0 12px #10b981;
+        }
+        .switch-visual {
+            stroke: #fff;
+            stroke-width: 3;
+            fill: none;
+            transition: transform 0.05s ease;
+            transform-origin: 5px 40px;
+        }
+        .switch-visual.closed {
+            transform: rotate(20deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0007 • Time Modulation</div>
+        <h1>How the ECU Changes Duty Cycle</h1>
+        
+        <p>A common misconception is that the ECU changes the duty cycle by opening a switch "partway," like a water faucet or a light dimmer. In reality, a solid-state switch (MOSFET) is strictly binary: **it is either 100% ON or 100% OFF.**</p>
+        <p>So, how does the ECU command 30% power, 50% power, or 80% power? The answer is **Time**.</p>
+
+        <h2>1. The Dimmer vs. the Speed Switch</h2>
+        <p>Instead of restricting the flow of voltage (which generates massive heat and wastes energy), the ECU keeps the voltage at a full 12V but modulates **how long** the switch stays closed versus open within a tiny window of time (a cycle).</p>
+        <p>For example, let's look at a circuit operating at a frequency of 100 Hz. This means there are **100 cycles every second**. Each single cycle lasts exactly **10 milliseconds** ($100\text{ Hz} = 1\text{ second} / 100 = 10\text{ms}$):</p>
+        <ul>
+            <li><strong>To get 10% Duty Cycle:</strong> The ECU closes the switch for **1 ms** (ON), then opens it for **9 ms** (OFF). The load gets a tiny nudge of power, then coasts.</li>
+            <li><strong>To get 50% Duty Cycle:</strong> The ECU closes the switch for **5 ms** (ON), then opens it for **5 ms** (OFF). The load gets power half the time.</li>
+            <li><strong>To get 90% Duty Cycle:</strong> The ECU closes the switch for **9 ms** (ON), then opens it for **1 ms** (OFF). The load gets constant push with only tiny interruptions.</li>
+        </ul>
+
+        <h2>2. Why Doesn't the Motor Stutter?</h2>
+        <p>Because the switching happens so fast (hundreds or thousands of times a second), the mechanical inertia of the fan motor and the electrical inductance of its copper coils prevent it from stopping during the "OFF" times. The motor doesn't have time to slow down; it simply averages out the pulses and spins smoothly at a steady speed.</p>
+
+        <!-- Interactive Time Simulator -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>ECU Time-Modulation Simulator</span>
+                <span id="txtMode" style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">MANUAL PULSE MODE</span>
+            </div>
+
+            <div class="sim-grid">
+                <!-- Left: Controls & Graph -->
+                <div>
+                    <div class="sim-btn-group" style="margin-top: 0;">
+                        <button class="sim-btn active" id="btnManualMode">Manual Tap Mode</button>
+                        <button class="sim-btn" id="btnAutoMode">Auto ECU Mode</button>
+                    </div>
+
+                    <!-- Manual Controls -->
+                    <div id="manualPanel">
+                        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                            Tap and hold the button below repeatedly. Try tapping it faster or holding it longer to see if you can keep the fan spinning smoothly!
+                        </p>
+                        <button class="sim-btn active" id="btnTapSwitch" style="width: 100%; padding: 1.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background-color: var(--accent);">
+                            Press Switch (ON)
+                        </button>
+                    </div>
+
+                    <!-- Auto Controls -->
+                    <div id="autoPanel" style="display: none;">
+                        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                            Adjust the Duty Cycle slider. The simulator is slowed down to <strong>1 cycle per second (1 Hz)</strong> so you can easily watch the time duration of the ON (green) and OFF (red) states.
+                        </p>
+                        <label style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--text-secondary);">Commanded Duty Cycle:</label>
+                        <div class="slider-container" style="margin-top: 0.25rem; margin-bottom: 1rem;">
+                            <span style="font-size: 0.85rem; font-family: var(--font-mono);">10%</span>
+                            <input type="range" id="dutySlider" min="10" max="90" step="10" value="50" style="width: 100%;">
+                            <span style="font-size: 0.85rem; font-family: var(--font-mono);">90%</span>
+                        </div>
+
+                        <!-- Time Allocation Bar -->
+                        <div class="time-bar-container">
+                            <div class="time-bar-label">
+                                <span>ON Time (Green)</span>
+                                <span>OFF Time (Red)</span>
+                            </div>
+                            <div class="time-bar">
+                                <div class="time-on" id="timeBarOn" style="width: 50%;"></div>
+                                <div class="time-off" id="timeBarOff" style="width: 50%;"></div>
+                            </div>
+                            <div class="time-bar-label" style="margin-top: 0.25rem;">
+                                <span id="lblTimeOn" style="color: var(--accent-success);">500 ms</span>
+                                <span id="lblTimeOff" style="color: #f43f5e;">500 ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Visual output -->
+                <div class="fan-container">
+                    <svg viewBox="0 0 100 100" style="width: 80px; height: 80px;">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="3"/>
+                        <g id="fanBlades" class="fan-blades">
+                            <path d="M 50 50 C 40 30, 45 10, 50 10 C 55 10, 60 30, 50 50 Z"/>
+                            <path d="M 50 50 C 70 40, 90 45, 90 50 C 90 55, 70 60, 50 50 Z"/>
+                            <path d="M 50 50 C 60 70, 55 90, 50 90 C 45 90, 40 70, 50 50 Z"/>
+                            <path d="M 50 50 C 30 60, 10 55, 10 50 C 10 45, 30 40, 50 50 Z"/>
+                        </g>
+                        <circle cx="50" cy="50" r="8" fill="#f3f4f6"/>
+                    </svg>
+
+                    <div class="indicator-bulb" id="indicatorBulb"></div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-secondary);" id="lblVoltage">
+                        SWITCH OPEN (0V)
+                    </div>
+                </div>
+            </div>
+
+            <div class="circuit-desc" id="circuitDesc">
+                In Manual Mode, tap the switch to spin the fan. Observe how the fan coasts when the switch is open. 
+            </div>
+        </div>
+
+        <h2>Summary: The Power is in the Timing</h2>
+        <p>The ECU changes duty cycle **not** by changing the height of the voltage steps (which always pulse to 12V), but by changing how long the voltage stays high vs. low in each cycle. By modulating time, the ECU controls average power with almost zero energy waste.</p>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>How does a solid-state ECU driver switch vary the power delivered to a motor?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">It changes the relative duration of active switch states.</button>
+                <button class="quiz-option" data-correct="false">It adjusts the internal load resistance of the switch.</button>
+                <button class="quiz-option" data-correct="false">It changes the main direction of flow within circuits.</button>
+                <button class="quiz-option" data-correct="false">It alters the main pulsed frequency of output signals.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>If a fan runs at a 20% duty cycle, what is the motor doing most of the time?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">Coasting without any electrical power push.</button>
+                <button class="quiz-option" data-correct="false">Drawing massive current from system sources.</button>
+                <button class="quiz-option" data-correct="false">Receiving half of electrical voltage inputs.</button>
+                <button class="quiz-option" data-correct="false">Changing motor loop direction into windings.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0006-how-low-side-switching-controls-flow.html" class="footer-link">← Previous Lesson (Flow Control)</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Diagnostics Lesson →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Have questions?</strong> You are the student and time modulation is your tool. Ask your teacher about duty cycle, ON/OFF switching, or fan coasting mechanics!
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const btnManualMode = document.getElementById('btnManualMode');
+        const btnAutoMode = document.getElementById('btnAutoMode');
+        const manualPanel = document.getElementById('manualPanel');
+        const autoPanel = document.getElementById('autoPanel');
+        const txtMode = document.getElementById('txtMode');
+        const circuitDesc = document.getElementById('circuitDesc');
+        
+        const btnTapSwitch = document.getElementById('btnTapSwitch');
+        const dutySlider = document.getElementById('dutySlider');
+        
+        const timeBarOn = document.getElementById('timeBarOn');
+        const timeBarOff = document.getElementById('timeBarOff');
+        const lblTimeOn = document.getElementById('lblTimeOn');
+        const lblTimeOff = document.getElementById('lblTimeOff');
+        
+        const fanBlades = document.getElementById('fanBlades');
+        const indicatorBulb = document.getElementById('indicatorBulb');
+        const lblVoltage = document.getElementById('lblVoltage');
+
+        let isManual = true;
+        let isButtonPressed = false;
+        
+        let fanRotation = 0;
+        let fanSpeed = 0; // Current kinetic speed of fan
+        let lastTime = performance.now();
+
+        // Auto mode timing loop parameters
+        let autoLoopId = null;
+        let isAutoOn = false;
+
+        // Manual tap button events
+        btnTapSwitch.addEventListener('mousedown', () => { isButtonPressed = true; });
+        btnTapSwitch.addEventListener('mouseup', () => { isButtonPressed = false; });
+        btnTapSwitch.addEventListener('mouseleave', () => { isButtonPressed = false; });
+        btnTapSwitch.addEventListener('touchstart', (e) => { e.preventDefault(); isButtonPressed = true; });
+        btnTapSwitch.addEventListener('touchend', () => { isButtonPressed = false; });
+
+        btnManualMode.addEventListener('click', () => {
+            isManual = true;
+            btnManualMode.classList.add('active');
+            btnAutoMode.classList.remove('active');
+            manualPanel.style.display = 'block';
+            autoPanel.style.display = 'none';
+            txtMode.textContent = "MANUAL PULSE MODE";
+            circuitDesc.innerHTML = "In Manual Mode, tap the switch to spin the fan. Observe how the fan coasts when the switch is open.";
+            stopAutoLoop();
+        });
+
+        btnAutoMode.addEventListener('click', () => {
+            isManual = false;
+            btnAutoMode.classList.add('active');
+            btnManualMode.classList.remove('active');
+            manualPanel.style.display = 'none';
+            autoPanel.style.display = 'block';
+            txtMode.textContent = "AUTO ECU MODE";
+            circuitDesc.innerHTML = "In Auto Mode, the ECU toggles the switch once per second (1 Hz). Watch the time bar and the bulb switch state.";
+            startAutoLoop();
+        });
+
+        dutySlider.addEventListener('input', () => {
+            const duty = parseInt(dutySlider.value);
+            timeBarOn.style.width = `${duty}%`;
+            timeBarOff.style.width = `${100 - duty}%`;
+            lblTimeOn.textContent = `${duty * 10} ms`;
+            lblTimeOff.textContent = `${(100 - duty) * 10} ms`;
+        });
+
+        function startAutoLoop() {
+            stopAutoLoop();
+            
+            function loop() {
+                const duty = parseInt(dutySlider.value);
+                const onTime = duty * 10; // Slowed down: 10% duty = 100ms
+                const offTime = (100 - duty) * 10;
+
+                // Turn Switch ON
+                isAutoOn = true;
+                
+                // Set timeout for turning off
+                autoLoopId = setTimeout(() => {
+                    isAutoOn = false;
+                    
+                    // Set timeout for next cycle start
+                    autoLoopId = setTimeout(loop, offTime);
+                }, onTime);
+            }
+            
+            loop();
+        }
+
+        function stopAutoLoop() {
+            if (autoLoopId) {
+                clearTimeout(autoLoopId);
+                autoLoopId = null;
+            }
+            isAutoOn = false;
+        }
+
+        function mainLoop(timestamp) {
+            const dt = (timestamp - lastTime) / 1000; // in seconds
+            lastTime = timestamp;
+
+            const isCurrentOn = isManual ? isButtonPressed : isAutoOn;
+
+            // Apply acceleration or coasting friction
+            if (isCurrentOn) {
+                fanSpeed += 15 * dt; // Accelerate
+                if (fanSpeed > 15) fanSpeed = 15; // Cap speed
+                indicatorBulb.classList.add('active');
+                lblVoltage.textContent = "SWITCH CLOSED (12V)";
+                lblVoltage.style.color = "#10b981";
+            } else {
+                fanSpeed -= 1.5 * dt; // Natural friction coasting
+                if (fanSpeed < 0) fanSpeed = 0;
+                indicatorBulb.classList.remove('active');
+                lblVoltage.textContent = "SWITCH OPEN (0V)";
+                lblVoltage.style.color = "#f43f5e";
+            }
+
+            // Spin blade visual
+            fanRotation += fanSpeed * 60 * dt;
+            fanBlades.style.transform = `rotate(${fanRotation}deg)`;
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        requestAnimationFrame(mainLoop);
+        // Trigger initial slider math
+        dutySlider.dispatchEvent(new Event('input'));
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "The ECU adjusts average power purely by altering the proportion of time the switch is active (ON) versus inactive (OFF) within each cycle.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "At 20% duty cycle, the switch is open 80% of the time, meaning the motor is coasting under its own momentum without active electrical push.");
+    </script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 2: Low-Side vs. High-Side Switching</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .circuit-card {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        .circuit-svg {
+            width: 100%;
+            height: auto;
+            max-height: 280px;
+            display: block;
+        }
+        .wire {
+            stroke: #334155;
+            stroke-width: 3;
+            fill: none;
+            transition: stroke 0.2s ease;
+        }
+        .wire.energized {
+            stroke: #ef4444; /* Red +12V */
+        }
+        .wire.grounded {
+            stroke: #3b82f6; /* Blue Ground */
+        }
+        .wire.active-flow {
+            stroke-dasharray: 8, 8;
+            animation: flow 1s linear infinite;
+        }
+        @keyframes flow {
+            to {
+                stroke-dashoffset: -16;
+            }
+        }
+        .component-label {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            fill: var(--text-secondary);
+        }
+        .sim-btn-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        .sim-btn {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .sim-btn:hover {
+            border-color: var(--accent);
+        }
+        .sim-btn.active {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        .sim-btn.danger-btn {
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .sim-btn.danger-btn:hover {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+        .sim-btn.danger-btn.active {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+        .circuit-desc {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.85rem;
+            min-height: 80px;
+            color: var(--text-secondary);
+        }
+        .spark-flash {
+            fill: #f59e0b;
+            opacity: 0;
+            transform-origin: center;
+        }
+        @keyframes spark {
+            0% { opacity: 0; transform: scale(0.5); }
+            50% { opacity: 1; transform: scale(1.5); }
+            100% { opacity: 0; transform: scale(0.5); }
+        }
+        .spark-active {
+            animation: spark 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0002 • Circuit Design</div>
+        <h1>Low-Side vs. High-Side Switching</h1>
+        
+        <p>In our last lesson, we saw how the Engine Control Unit (ECU) uses transistors as high-speed switches to pulse-width modulate power to actuators. Today, we will explore <strong>where</strong> that transistor switch is placed in the circuit, how the transistor operates internally, and why this placement is critical for vehicle diagnosis and safety.</p>
+
+        <h2>The ECU's Solid-State Relays: MOSFETs</h2>
+        <p>An ECU contains microcontrollers that operate at 5V or 3.3V and can output only a few milliamperes of current. To control a radiator cooling fan drawing 15 Amperes at 12V, the ECU uses a <strong>MOSFET</strong> (Metal-Oxide-Semiconductor Field-Effect Transistor) as an electronic switch. There are two primary types of MOSFETs used for this:</p>
+        
+        <ul>
+            <li><strong>N-Channel MOSFET:</strong> Turns ON when a positive voltage is applied to its Gate relative to its Source. They are highly efficient, cheap to manufacture, and have extremely low internal resistance ($R_{DS(on)}$).</li>
+            <li><strong>P-Channel MOSFET:</strong> Turns ON when the Gate voltage is pulled low relative to its Source. They are slightly less efficient and more expensive than N-channel MOSFETs, but are useful for directly controlling the power side of a circuit.</li>
+        </ul>
+
+        <h2>Switching Strategies: Low-Side vs. High-Side</h2>
+        <p>Depending on the system's needs, automotive engineers position the transistor switch in one of two configurations:</p>
+        
+        <div class="callout">
+            <div class="callout-title">🔌 Low-Side Switching (Standard Config)</div>
+            <p>The transistor switch is placed on the <strong>ground side</strong> of the actuator. The actuator is permanently connected to +12V battery power. To turn the device on, the ECU applies voltage to the gate of an <strong>N-channel MOSFET</strong>, closing the switch and completing the circuit path to ground.</p>
+        </div>
+
+        <div class="callout tip">
+            <div class="callout-title">⚡ High-Side Switching (Safety Config)</div>
+            <p>The transistor switch is placed on the <strong>power side</strong> of the actuator. The actuator is permanently connected to the metal chassis (ground). To turn the device on, the ECU switch closes, delivering +12V battery power to the control line. This is often done using <strong>P-channel MOSFETs</strong> or specialized "Smart High-Side Drivers" that include built-in current sensors.</p>
+        </div>
+
+        <h2>Why Location Matters: The Short-to-Ground Fault</h2>
+        <p>Cars are made of metal, and the entire chassis acts as the negative terminal (ground). Wiring harnesses run through tight metal channels where vibration can rub off wire insulation. This makes a <strong>short-to-ground</strong> the most common electrical fault in a vehicle. Let's see how each config behaves under this fault condition.</p>
+
+        <!-- Interactive Circuit Simulator -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Interactive Circuit Simulator</span>
+                <span id="configModeLabel" style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">LOW-SIDE DRIVER</span>
+            </div>
+
+            <div class="sim-btn-group">
+                <button class="sim-btn active" id="btnLowSide">Low-Side Config</button>
+                <button class="sim-btn" id="btnHighSide">High-Side Config</button>
+                <span style="color: var(--border-color); margin: 0 0.5rem; align-self: center;">|</span>
+                <button class="sim-btn" id="btnGate">Gate Signal: OFF</button>
+                <button class="sim-btn danger-btn" id="btnShort">Fault: NONE</button>
+            </div>
+
+            <div class="circuit-card">
+                <!-- SVG Circuit Schematic -->
+                <svg class="circuit-svg" viewBox="0 0 400 200" id="circuitSvg">
+                    <!-- Grid markers or decorative lines -->
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Battery -->
+                    <g transform="translate(30, 80)">
+                        <line x1="0" y1="0" x2="0" y2="40" stroke="#f3f4f6" stroke-width="2"/>
+                        <line x1="-15" y1="10" x2="15" y2="10" stroke="#f43f5e" stroke-width="4"/>
+                        <line x1="-8" y1="20" x2="8" y2="20" stroke="#3b82f6" stroke-width="2"/>
+                        <line x1="-15" y1="30" x2="15" y2="30" stroke="#f43f5e" stroke-width="4"/>
+                        <line x1="-8" y1="40" x2="8" y2="40" stroke="#3b82f6" stroke-width="2"/>
+                        <text x="20" y="8" class="component-label" fill="#f43f5e">12V Battery</text>
+                    </g>
+
+                    <!-- Ground Left (Battery Ground) -->
+                    <path d="M 30 140 L 30 160 M 20 160 L 40 160 M 24 165 L 36 165 M 28 170 L 32 170" stroke="#f3f4f6" stroke-width="2"/>
+
+                    <!-- Fuse -->
+                    <g transform="translate(80, 80)">
+                        <rect x="0" y="-10" width="30" height="20" rx="3" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <path d="M 0 0 C 10 -10, 20 10, 30 0" fill="none" stroke="#f59e0b" stroke-width="2" id="fuseElement"/>
+                        <text x="0" y="-15" class="component-label">Fuse (15A)</text>
+                        <!-- Spark animation node -->
+                        <polygon points="15,-15 10,0 20,-5 15,10 25,0" class="spark-flash" id="sparkNode"/>
+                    </g>
+
+                    <!-- Actuator (Cooling Fan) -->
+                    <g transform="translate(170, 80)">
+                        <circle cx="20" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="20" y="4" font-family="sans-serif" font-weight="bold" font-size="12" fill="#f3f4f6" text-anchor="middle">FAN</text>
+                        <text x="20" y="-28" class="component-label" text-anchor="middle">Actuator</text>
+                    </g>
+
+                    <!-- Transistor / Switch Symbol -->
+                    <g transform="translate(260, 80)" id="transistorGroup">
+                        <!-- Switch Housing -->
+                        <circle cx="20" cy="0" r="18" fill="#131a2b" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="3,3"/>
+                        <!-- Switch Lever (Animate rotation to close) -->
+                        <line x1="5" y1="0" x2="35" y2="-12" stroke="#f3f4f6" stroke-width="3" id="switchLever" stroke-linecap="round" transform-origin="5 0"/>
+                        <!-- Terminal contacts -->
+                        <circle cx="5" cy="0" r="3" fill="#ef4444"/>
+                        <circle cx="35" cy="0" r="3" fill="#3b82f6"/>
+                        <text x="20" y="-24" class="component-label" text-anchor="middle" id="switchLabel">ECU Driver</text>
+                    </g>
+
+                    <!-- Ground Right (Chassis Ground) -->
+                    <g transform="translate(340, 80)" id="rightGroundGroup">
+                        <path d="M 0 0 L 0 40 M -10 40 L 10 40 M -6 45 L 6 45 M -2 50 L 2 50" stroke="#f3f4f6" stroke-width="2"/>
+                    </g>
+
+                    <!-- Fault Ground Path -->
+                    <g transform="translate(230, 80)" id="faultGroundGroup" opacity="0">
+                        <path d="M 0 0 L 0 50 M -10 50 L 10 50 M -6 55 L 6 55 M -2 60 L 2 60" stroke="#ef4444" stroke-width="2" stroke-dasharray="3,3"/>
+                        <text x="15" y="48" class="component-label" fill="#ef4444">Chassis Short</text>
+                    </g>
+
+                    <!-- Connections Wires (Paths) -->
+                    <!-- Path 1: Battery to Fuse -->
+                    <path d="M 30 80 L 30 40 L 80 40" class="wire energized" id="wire1"/>
+                    <!-- Path 2: Fuse to Actuator (Low Side Setup) -->
+                    <path d="M 110 40 L 170 40" class="wire energized" id="wire2"/>
+                    <!-- Path 3: Actuator to Switch -->
+                    <path d="M 212 40 L 265 40" class="wire" id="wire3"/>
+                    <!-- Path 4: Switch to Ground -->
+                    <path d="M 295 40 L 340 40" class="wire" id="wire4"/>
+
+                    <!-- Animate electrons flow -->
+                    <path d="M 30 80 L 30 40 L 80 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow1"/>
+                    <path d="M 110 40 L 170 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow2"/>
+                    <path d="M 212 40 L 265 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow3"/>
+                    <path d="M 295 40 L 340 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow4"/>
+                </svg>
+            </div>
+
+            <div class="circuit-desc" id="circuitDesc">
+                Select configurations above and toggle the Gate Signal (ECU Output) or inject a wire Short-to-Ground fault to see the results.
+            </div>
+        </div>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>If a low-side controlled cooling fan has its control wire pinched and shorted to the metal chassis, what will be the symptom?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The cooling fan runs constantly at full speed.</button>
+                <button class="quiz-option" data-correct="false">The circuit fuse immediately blows and melts.</button>
+                <button class="quiz-option" data-correct="false">The control module is permanently destroyed.</button>
+                <button class="quiz-option" data-correct="false">The fan operates only at half efficiency.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>Why do automotive manufacturers prefer N-channel MOSFET low-side drivers over high-side configurations for most motors?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">They exhibit lower resistance and reduce production costs.</button>
+                <button class="quiz-option" data-correct="false">They generate less interference and simplify wire routing.</button>
+                <button class="quiz-option" data-correct="false">They protect delicate electronics and extend battery life.</button>
+                <button class="quiz-option" data-correct="false">They permit higher operating voltages and improve current.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0001-what-is-pwm-and-why-cars.html" class="footer-link">← Previous Lesson</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Next Lesson →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Next Step:</strong> Complete the interactive fault simulator and check your answers. Once ready, move on to the <strong>next lesson to master PWM diagnostics using a multimeter and oscilloscope</strong>!
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const btnLowSide = document.getElementById('btnLowSide');
+        const btnHighSide = document.getElementById('btnHighSide');
+        const btnGate = document.getElementById('btnGate');
+        const btnShort = document.getElementById('btnShort');
+        
+        const configLabel = document.getElementById('configModeLabel');
+        const circuitDesc = document.getElementById('circuitDesc');
+        
+        const fuseElement = document.getElementById('fuseElement');
+        const sparkNode = document.getElementById('sparkNode');
+        const switchLever = document.getElementById('switchLever');
+        const faultGroundGroup = document.getElementById('faultGroundGroup');
+        const rightGroundGroup = document.getElementById('rightGroundGroup');
+        const transistorGroup = document.getElementById('transistorGroup');
+        
+        // Wires
+        const w1 = document.getElementById('wire1');
+        const w2 = document.getElementById('wire2');
+        const w3 = document.getElementById('wire3');
+        const w4 = document.getElementById('wire4');
+        
+        // Flow helpers
+        const f1 = document.getElementById('flow1');
+        const f2 = document.getElementById('flow2');
+        const f3 = document.getElementById('flow3');
+        const f4 = document.getElementById('flow4');
+
+        let isLowSide = true;
+        let isGateOn = false;
+        let isShortActive = false;
+        let isFuseBlown = false;
+
+        function updateCircuitState() {
+            // Reset fuse if switching configs
+            if (isFuseBlown) {
+                isFuseBlown = false;
+                fuseElement.setAttribute('d', 'M 0 0 C 10 -10, 20 10, 30 0');
+                fuseElement.style.stroke = '#f59e0b';
+            }
+
+            // Animate gate switch lever
+            if (isGateOn && !isFuseBlown) {
+                switchLever.setAttribute('transform', 'rotate(18deg)');
+            } else {
+                switchLever.setAttribute('transform', 'rotate(0)');
+            }
+
+            // High-Side vs Low-Side SVG Layout Tweaks
+            if (isLowSide) {
+                configLabel.textContent = "LOW-SIDE DRIVER";
+                // Switch is on Ground side. Fan is on Power side.
+                // Wire 2 connects Fuse to Fan. Wire 3 connects Fan to Switch. Wire 4 connects Switch to Ground.
+                // Move Right Ground Group to ground contact
+                rightGroundGroup.setAttribute('transform', 'translate(340, 80)');
+                transistorGroup.setAttribute('transform', 'translate(260, 80)');
+                faultGroundGroup.setAttribute('transform', 'translate(230, 80)');
+                
+                // Color mapping logic
+                w1.className.baseVal = "wire energized";
+                w2.className.baseVal = "wire energized";
+                
+                // Control wire color (w3): Is it grounded or floating or shorted?
+                if (isShortActive) {
+                    w3.className.baseVal = "wire grounded";
+                    faultGroundGroup.setAttribute('opacity', '1');
+                } else if (isGateOn) {
+                    w3.className.baseVal = "wire grounded";
+                    faultGroundGroup.setAttribute('opacity', '0');
+                } else {
+                    w3.className.baseVal = "wire energized"; // Pulls up to 12V through the motor winding
+                    faultGroundGroup.setAttribute('opacity', '0');
+                }
+                
+                w4.className.baseVal = "wire grounded";
+
+                // Flow logic (electrons)
+                const isFlowing = isGateOn || isShortActive;
+                f1.style.stroke = isFlowing ? "#10b981" : "transparent";
+                f2.style.stroke = isFlowing ? "#10b981" : "transparent";
+                f3.style.stroke = isFlowing ? "#10b981" : "transparent";
+                f4.style.stroke = (isFlowing && !isShortActive) ? "#10b981" : "transparent";
+
+                // Descriptions
+                if (isShortActive) {
+                    circuitDesc.innerHTML = "<strong>Low-Side Short-to-Ground:</strong> The control line after the motor is pinched to the chassis. Current bypasses the ECU switch and flows continuously through the fuse and motor to chassis ground. <strong>Symptom: The fan runs at 100% speed continuously</strong>, even with the keys off. The fuse remains intact because the motor limits current flow.";
+                } else if (isGateOn) {
+                    circuitDesc.innerHTML = "<strong>Low-Side Switch Closed (ON):</strong> The ECU outputs a voltage to the Gate, closing the N-channel transistor path. Current flows through the fuse, actuator, and driver directly to chassis ground. The fan spins.";
+                } else {
+                    circuitDesc.innerHTML = "<strong>Low-Side Switch Open (OFF):</strong> The ECU pulls the Gate low, opening the transistor switch. Because the ground path is broken, no current flows. Note: A voltmeter testing the control wire (w3) will read 12V because it pulls up through the motor coils.";
+                }
+
+            } else {
+                configLabel.textContent = "HIGH-SIDE DRIVER";
+                // Switch is on Power side (between Fuse and Fan). Fan is on Ground side.
+                // Wire 2 connects Fuse to Switch. Wire 3 connects Switch to Fan. Wire 4 connects Fan to Ground.
+                rightGroundGroup.setAttribute('transform', 'translate(340, 80)');
+                transistorGroup.setAttribute('transform', 'translate(130, 80)');
+                faultGroundGroup.setAttribute('transform', 'translate(230, 80)');
+                
+                // Color mapping logic
+                w1.className.baseVal = "wire energized";
+                
+                if (isFuseBlown) {
+                    w2.className.baseVal = "wire";
+                    w3.className.baseVal = "wire grounded";
+                    w4.className.baseVal = "wire grounded";
+                    f1.style.stroke = "transparent";
+                    f2.style.stroke = "transparent";
+                    f3.style.stroke = "transparent";
+                    f4.style.stroke = "transparent";
+                    faultGroundGroup.setAttribute('opacity', isShortActive ? '1' : '0');
+                    circuitDesc.innerHTML = "<strong>Fuse Blown!</strong> A direct short occurred when the high-side switch closed. The excessive current melted the fuse link, protecting the wiring from catching fire. The circuit is now completely dead.";
+                    return;
+                }
+
+                if (isGateOn) {
+                    w2.className.baseVal = "wire energized";
+                    if (isShortActive) {
+                        w3.className.baseVal = "wire grounded"; // direct path to short
+                    } else {
+                        w3.className.baseVal = "wire energized";
+                    }
+                } else {
+                    w2.className.baseVal = "wire energized";
+                    if (isShortActive) {
+                        w3.className.baseVal = "wire grounded";
+                    } else {
+                        w3.className.baseVal = "wire grounded"; // pulls down to ground through motor
+                    }
+                }
+                
+                w4.className.baseVal = "wire grounded";
+
+                // Check for Short-Circuit Event
+                if (isShortActive && isGateOn) {
+                    // Direct short from Battery -> Fuse -> Switch -> Ground! FUSE BLOWS!
+                    isFuseBlown = true;
+                    // Visual spark
+                    sparkNode.classList.add('spark-active');
+                    setTimeout(() => {
+                        sparkNode.classList.remove('spark-active');
+                    }, 300);
+                    // Break fuse link in SVG
+                    fuseElement.setAttribute('d', 'M 0 0 C 5 -10, 8 -3, 11 -8 M 18 5 L 30 0');
+                    fuseElement.style.stroke = '#ef4444';
+                    
+                    updateCircuitState();
+                    return;
+                }
+
+                faultGroundGroup.setAttribute('opacity', isShortActive ? '1' : '0');
+
+                // Flow logic (electrons)
+                const isFlowing = isGateOn && !isShortActive;
+                f1.style.stroke = (isGateOn || isShortActive && isGateOn) ? "#10b981" : "transparent";
+                f2.style.stroke = (isGateOn || isShortActive && isGateOn) ? "#10b981" : "transparent";
+                f3.style.stroke = isFlowing ? "#10b981" : "transparent";
+                f4.style.stroke = isFlowing ? "#10b981" : "transparent";
+
+                if (isShortActive) {
+                    circuitDesc.innerHTML = "<strong>High-Side Short-to-Ground:</strong> The control line between the switch and the motor is shorted to the chassis. If the ECU turns the switch ON, 12V is dumped directly to ground. <strong>Try pressing 'Gate Signal: ON' to see what happens next!</strong>";
+                } else if (isGateOn) {
+                    circuitDesc.innerHTML = "<strong>High-Side Switch Closed (ON):</strong> The ECU switch closes on the power side, delivering +12V through the control line (w3) to the motor. The fan spins.";
+                } else {
+                    circuitDesc.innerHTML = "<strong>High-Side Switch Open (OFF):</strong> The ECU switch is open. The control line has no power. The fan remains idle.";
+                }
+            }
+        }
+
+        btnLowSide.addEventListener('click', () => {
+            isLowSide = true;
+            btnLowSide.classList.add('active');
+            btnHighSide.classList.remove('active');
+            updateCircuitState();
+        });
+
+        btnHighSide.addEventListener('click', () => {
+            isLowSide = false;
+            btnHighSide.classList.add('active');
+            btnLowSide.classList.remove('active');
+            updateCircuitState();
+        });
+
+        btnGate.addEventListener('click', () => {
+            isGateOn = !isGateOn;
+            btnGate.textContent = `Gate Signal: ${isGateOn ? "ON" : "OFF"}`;
+            btnGate.classList.toggle('active', isGateOn);
+            updateCircuitState();
+        });
+
+        btnShort.addEventListener('click', () => {
+            isShortActive = !isShortActive;
+            btnShort.textContent = `Fault: ${isShortActive ? "SHORT TO GND" : "NONE"}`;
+            btnShort.classList.toggle('active', isShortActive);
+            updateCircuitState();
+        });
+
+        updateCircuitState();
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "Because the motor sits before the switch, a short to ground bypasses the switch but continues to flow through the motor. Since the motor has internal resistance, it restricts current draw and operates continuously without blowing the fuse.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "N-channel MOSFETs are the default industry choice for high-power switching because they have much lower internal resistance (R_DS(on)) than P-channel variants, producing less heat and lowering raw silicon component costs.");
+    </script>
+</body>
+</html>

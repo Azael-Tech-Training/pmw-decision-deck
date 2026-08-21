@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 4: How Shorts to Ground Blow Fuses</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .circuit-card {
+            background-color: #05070a;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        .circuit-svg {
+            width: 100%;
+            height: auto;
+            max-height: 280px;
+            display: block;
+        }
+        .wire {
+            stroke: #334155;
+            stroke-width: 3;
+            fill: none;
+            transition: stroke 0.2s ease;
+        }
+        .wire.energized {
+            stroke: #ef4444; /* Red +12V */
+        }
+        .wire.grounded {
+            stroke: #3b82f6; /* Blue Ground */
+        }
+        .wire.shorted-path {
+            stroke: #f59e0b; /* Amber Short */
+            stroke-dasharray: 5, 5;
+        }
+        .wire.active-flow {
+            stroke-dasharray: 8, 8;
+            animation: flow 1s linear infinite;
+        }
+        @keyframes flow {
+            to {
+                stroke-dashoffset: -16;
+            }
+        }
+        .component-label {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            fill: var(--text-secondary);
+        }
+        .sim-btn-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        .sim-btn {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .sim-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+        }
+        .sim-btn.active {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        .sim-btn.danger-btn {
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .sim-btn.danger-btn:hover:not(:disabled) {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+        .sim-btn.danger-btn.active {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+        .circuit-desc {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.85rem;
+            min-height: 80px;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+        .spark-flash {
+            fill: #f59e0b;
+            opacity: 0;
+            transform-origin: center;
+        }
+        @keyframes spark {
+            0% { opacity: 0; transform: scale(0.5); }
+            50% { opacity: 1; transform: scale(2); }
+            100% { opacity: 0; transform: scale(0.5); }
+        }
+        .spark-active {
+            animation: spark 0.4s ease-out;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .stat-val.high-alert {
+            color: #f87171;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+        .fuse-glow {
+            transition: filter 0.1s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-meta">Lesson 0004 • Electrical Physics</div>
+        <h1>How Shorts to Ground Blow Fuses</h1>
+        
+        <p>In the last lessons, we saw how the ECU switches loads on and off and how short circuits affect high-side and low-side designs. Today, we look at the physics of <strong>Ohm's Law</strong> and <strong>Joule Heating</strong> to explain exactly how a short to ground blows a fuse.</p>
+
+        <h2>1. The Physics of the Circuit: Resistance Limits Current</h2>
+        <p>Every electrical circuit behaves according to <strong>Ohm's Law</strong>: </p>
+        <div style="text-align: center; margin: 1.5rem 0;">
+            <code style="font-size: 1.5rem; color: var(--accent); padding: 0.5rem 1rem;">Current (I) = Voltage (V) / Resistance (R)</code>
+        </div>
+        <p>In a healthy circuit, the <strong>load</strong> (such as a 2.0 &Omega; fan motor or a light bulb) provides the resistance. The wires and fuse have almost no resistance (typically around 0.02 &Omega;). Since the load is the largest resistance in the path, it determines how much current flows. On a 12V car system:</p>
+        <p style="text-align: center; font-family: var(--font-mono); color: var(--text-secondary);">
+            $I = 12\text{V} / 2.0\text{ }\Omega = 6\text{ Amperes}$
+        </p>
+        <p>A 15A fuse easily handles 6A without heating up, allowing the fan to run safely.</p>
+
+        <h2>2. The Ground Short: Bypassing the Resistance</h2>
+        <p>Cars are made of metal, and the entire body structure acts as the negative battery terminal (ground). If the insulation on the 12V power line rubs off against a metal bracket <strong>before</strong> the load, the electricity takes a shortcut straight back to the battery. This is a <strong>short-to-ground</strong>.</p>
+        <p>Because the load is bypassed, the only resistance remaining in the circuit is the tiny internal resistance of the copper wire and the fuse element itself (around 0.05 &Omega; total). If we calculate the current now:</p>
+        <p style="text-align: center; font-family: var(--font-mono); color: #f87171; font-weight: bold;">
+            $I = 12\text{V} / 0.05\text{ }\Omega = 240\text{ Amperes}!$
+        </p>
+
+        <h2>3. Joule Heating: Turning Excess Current Into Heat</h2>
+        <p>When current flows through a wire, it generates heat. This is called <strong>Joule Heating</strong>. The rate of heat generated is proportional to the square of the current:</p>
+        <div style="text-align: center; margin: 1.5rem 0;">
+            <code style="font-size: 1.5rem; color: #ef4444; padding: 0.5rem 1rem;">Power (Heat) = I² × R</code>
+        </div>
+        <p>Let's look at the heat generated inside a 0.02 &Omega; fuse link under both conditions:</p>
+        <ul>
+            <li><strong>Normal Load (6A):</strong> $P = 6^2 \times 0.02 = 0.72\text{ Watts}$. A tiny amount of heat, easily dissipated into the surrounding plastic casing. The fuse stays cool.</li>
+            <li><strong>Ground Short (240A):</strong> $P = 240^2 \times 0.02 = 1,152\text{ Watts}$! This is equivalent to a high-power microwave's heat concentrated into a tiny metal strip smaller than a fingernail.</li>
+        </ul>
+        <p>Because this heat builds up in a fraction of a millisecond, the metal strip in the fuse quickly reaches its melting point (typically zinc or copper alloy, melting around 420°C to 1080°C). It melts, breaks apart, and creates an air gap, cutting off all current flow and protecting the main wire harness from catching fire.</p>
+
+        <!-- Interactive Physics Simulator -->
+        <div class="widget">
+            <div class="widget-title">
+                <span>Interactive Short Circuit Simulator</span>
+                <span style="font-size: 0.8rem; color: var(--accent); font-family: var(--font-mono);">JOULE HEATING SIMULATION</span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Resistance</div>
+                    <div class="stat-val" id="statResist">2.02 &Omega;</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current Flow</div>
+                    <div class="stat-val" id="statCurrent">0.0 A</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Fuse Heat Power</div>
+                    <div class="stat-val" id="statHeat">0.0 W</div>
+                </div>
+            </div>
+
+            <div class="circuit-card">
+                <!-- SVG Circuit Schematic -->
+                <svg class="circuit-svg" viewBox="0 0 400 200" id="circuitSvg">
+                    <!-- Battery -->
+                    <g transform="translate(30, 80)">
+                        <line x1="0" y1="0" x2="0" y2="40" stroke="#f3f4f6" stroke-width="2"/>
+                        <line x1="-15" y1="10" x2="15" y2="10" stroke="#f43f5e" stroke-width="4"/>
+                        <line x1="-8" y1="20" x2="8" y2="20" stroke="#3b82f6" stroke-width="2"/>
+                        <line x1="-15" y1="30" x2="15" y2="30" stroke="#f43f5e" stroke-width="4"/>
+                        <line x1="-8" y1="40" x2="8" y2="40" stroke="#3b82f6" stroke-width="2"/>
+                        <text x="20" y="8" class="component-label" fill="#f43f5e">12V Battery</text>
+                    </g>
+                    <path d="M 30 140 L 30 160 M 20 160 L 40 160 M 24 165 L 36 165 M 28 170 L 32 170" stroke="#f3f4f6" stroke-width="2"/>
+
+                    <!-- Fuse Element with Glow -->
+                    <g transform="translate(80, 80)">
+                        <rect x="0" y="-10" width="30" height="20" rx="3" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <path d="M 0 0 C 10 -10, 20 10, 30 0" fill="none" stroke="#f59e0b" stroke-width="2.5" id="fuseElement" class="fuse-glow"/>
+                        <text x="0" y="-15" class="component-label">Fuse (15A)</text>
+                        <!-- Spark animation node -->
+                        <polygon points="15,-15 10,0 20,-5 15,10 25,0" class="spark-flash" id="sparkNode"/>
+                    </g>
+
+                    <!-- Actuator (Cooling Fan Load) -->
+                    <g transform="translate(180, 80)">
+                        <circle cx="20" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+                        <text x="20" y="4" font-family="sans-serif" font-weight="bold" font-size="12" fill="#f3f4f6" text-anchor="middle" id="loadLabel">2.0 &Omega;</text>
+                        <text x="20" y="-28" class="component-label" text-anchor="middle">Fan Load</text>
+                    </g>
+
+                    <!-- Switch -->
+                    <g transform="translate(270, 80)" id="switchGroup">
+                        <circle cx="20" cy="0" r="18" fill="#131a2b" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="3,3"/>
+                        <line x1="5" y1="0" x2="35" y2="-12" stroke="#f3f4f6" stroke-width="3" id="switchLever" stroke-linecap="round" transform-origin="5 0"/>
+                        <circle cx="5" cy="0" r="3" fill="#ef4444"/>
+                        <circle cx="35" cy="0" r="3" fill="#3b82f6"/>
+                        <text x="20" y="-24" class="component-label" text-anchor="middle">Switch</text>
+                    </g>
+                    <path d="M 305 80 L 340 80 M 340 80 L 340 120 M 330 120 L 350 120 M 334 125 L 346 125 M 338 130 L 342 130" stroke="#f3f4f6" stroke-width="2"/>
+
+                    <!-- Fault Ground Path -->
+                    <g transform="translate(140, 80)" id="faultGroundGroup" opacity="0">
+                        <path d="M 0 0 L 0 50 M -10 50 L 10 50 M -6 55 L 6 55 M -2 60 L 2 60" stroke="#ef4444" stroke-width="2" stroke-dasharray="3,3"/>
+                        <text x="15" y="48" class="component-label" fill="#ef4444">Chassis Short</text>
+                    </g>
+
+                    <!-- Connection Wires -->
+                    <path d="M 30 80 L 30 40 L 80 40" class="wire energized" id="wire1"/>
+                    <path d="M 110 40 L 180 40" class="wire energized" id="wire2"/>
+                    <path d="M 222 40 L 275 40" class="wire" id="wire3"/>
+                    <path d="M 305 40 L 340 40" class="wire" id="wire4"/>
+
+                    <!-- Flow of current -->
+                    <path d="M 30 80 L 30 40 L 80 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow1"/>
+                    <path d="M 110 40 L 180 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow2"/>
+                    <path d="M 222 40 L 275 40" class="wire active-flow" style="stroke: transparent; stroke-width: 5;" id="flow3"/>
+                </svg>
+            </div>
+
+            <div class="sim-btn-group">
+                <button class="sim-btn" id="btnToggleSwitch">Close Switch</button>
+                <button class="sim-btn danger-btn" id="btnToggleShort">Fault: NONE</button>
+                <button class="sim-btn" id="btnReplaceFuse" style="display: none;">Replace Fuse</button>
+            </div>
+
+            <div class="circuit-desc" id="circuitDesc">
+                Click <strong>Close Switch</strong> to power the circuit normally and observe the current draw and heat generation. Then open the switch, click <strong>Fault: SHORT TO GND</strong>, and close the switch to observe what happens!
+            </div>
+        </div>
+
+        <h2>Summary: Why Low-Side Shorts Don't Blow Fuses</h2>
+        <p>In a <strong>High-Side driver</strong>, the short-to-ground happens on the power line <em>before</em> the actuator. This bypasses the load entirely, resulting in high current that instantly melts the fuse.</p>
+        <p>In a <strong>Low-Side driver</strong>, the actuator is positioned <em>before</em> the switch. If the wire between the actuator and the switch shorts to ground, the current must still pass through the actuator's internal windings. The actuator's resistance remains in the path, limiting the current to normal levels. The fuse does not blow, but the actuator runs continuously because the control switch is bypassed.</p>
+
+        <h2>Quick Knowledge Check</h2>
+        
+        <!-- Question 1 -->
+        <div class="widget" id="quiz1">
+            <div class="widget-title">Question 1</div>
+            <p>Under a short to ground fault that bypasses a 2-ohm fan motor, what primary event causes the fuse's metal element to melt?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The massive current spike generates extreme heat inside it.</button>
+                <button class="quiz-option" data-correct="false">The constant voltage surges far past normal voltage limits.</button>
+                <button class="quiz-option" data-correct="false">The electrical resistance drops down to nominal ohm levels.</button>
+                <button class="quiz-option" data-correct="false">The battery static field damages internal metal fuse links.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback1"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit1" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="widget" id="quiz2">
+            <div class="widget-title">Question 2</div>
+            <p>Why does a low-side control wire short to ground not blow the circuit fuse?</p>
+            <div class="quiz-options">
+                <button class="quiz-option" data-correct="true">The actuator resistance still limits the circuit current to normal levels.</button>
+                <button class="quiz-option" data-correct="false">The electrical switch stays open and blocks current from flowing therein.</button>
+                <button class="quiz-option" data-correct="false">The chassis connection absorbs voltage charge away from the battery power.</button>
+                <button class="quiz-option" data-correct="false">The battery automatically closes down its power output to protect systems.</button>
+            </div>
+            <div class="quiz-feedback" id="feedback2"></div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="quiz-btn" id="submit2" disabled>Submit Answer</button>
+            </div>
+        </div>
+
+        <div class="lesson-footer">
+            <div class="footer-nav">
+                <a href="./0002-low-side-vs-high-side.html" class="footer-link">← Previous Lesson (Low/High Side)</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="./0003-diagnostics-multimeter-oscilloscope.html" class="footer-link">Next Lesson (Diagnostics) →</a>
+                <span style="color: var(--border-color);">|</span>
+                <a href="../reference/pwm-basics.html" class="footer-link">📚 View Cheat Sheet</a>
+            </div>
+            <div class="reminder-box">
+                <strong>Have Questions?</strong> Ask your agent helper to explain anything about how Joule heating, Ohm's law, or short circuits operate in cars.
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Logic -->
+    <script>
+        const btnToggleSwitch = document.getElementById('btnToggleSwitch');
+        const btnToggleShort = document.getElementById('btnToggleShort');
+        const btnReplaceFuse = document.getElementById('btnReplaceFuse');
+        
+        const circuitDesc = document.getElementById('circuitDesc');
+        const statResist = document.getElementById('statResist');
+        const statCurrent = document.getElementById('statCurrent');
+        const statHeat = document.getElementById('statHeat');
+        
+        const fuseElement = document.getElementById('fuseElement');
+        const sparkNode = document.getElementById('sparkNode');
+        const switchLever = document.getElementById('switchLever');
+        const faultGroundGroup = document.getElementById('faultGroundGroup');
+        
+        // Wires
+        const w1 = document.getElementById('wire1');
+        const w2 = document.getElementById('wire2');
+        const w3 = document.getElementById('wire3');
+        const w4 = document.getElementById('wire4');
+        
+        // Flow helpers
+        const f1 = document.getElementById('flow1');
+        const f2 = document.getElementById('flow2');
+        const f3 = document.getElementById('flow3');
+
+        let isSwitchClosed = false;
+        let isShortActive = false;
+        let isFuseBlown = false;
+
+        const V_SOURCE = 12.0;
+        const R_FUSE = 0.02;
+        const R_LOAD = 2.0;
+        const R_SHORT = 0.03; // Tiny resistance of chassis return path
+
+        function updateCircuit() {
+            // Calculate parameters
+            let totalR = R_FUSE;
+            let current = 0.0;
+            let fuseHeat = 0.0;
+
+            if (isFuseBlown) {
+                totalR = Infinity;
+                current = 0.0;
+                fuseHeat = 0.0;
+            } else if (isSwitchClosed) {
+                if (isShortActive) {
+                    // Current bypasses load entirely and flows through short path
+                    totalR = R_FUSE + R_SHORT;
+                    current = V_SOURCE / totalR;
+                    fuseHeat = current * current * R_FUSE;
+                } else {
+                    // Normal loop through load and switch
+                    totalR = R_FUSE + R_LOAD;
+                    current = V_SOURCE / totalR;
+                    fuseHeat = current * current * R_FUSE;
+                }
+            } else {
+                // Switch open
+                if (isShortActive) {
+                    // If short active, power is still tied to ground through short path!
+                    totalR = R_FUSE + R_SHORT;
+                    current = V_SOURCE / totalR;
+                    fuseHeat = current * current * R_FUSE;
+                } else {
+                    totalR = R_FUSE + R_LOAD; // potential resistance
+                    current = 0.0;
+                    fuseHeat = 0.0;
+                }
+            }
+
+            // Update displays
+            statResist.innerHTML = totalR === Infinity ? "&infin; &Omega;" : `${totalR.toFixed(2)} &Omega;`;
+            statCurrent.textContent = `${current.toFixed(1)} A`;
+            statHeat.textContent = `${fuseHeat.toFixed(1)} W`;
+
+            // Highlight statistics under abnormal load
+            if (current > 15.0) {
+                statCurrent.classList.add('high-alert');
+                statHeat.classList.add('high-alert');
+            } else {
+                statCurrent.classList.remove('high-alert');
+                statHeat.classList.remove('high-alert');
+            }
+
+            // Check if fuse blows
+            if (current > 15.0 && !isFuseBlown) {
+                triggerFuseBlow();
+                return;
+            }
+
+            // Animate Switch Lever
+            if (isSwitchClosed && !isFuseBlown) {
+                switchLever.setAttribute('transform', 'rotate(18deg)');
+            } else {
+                switchLever.setAttribute('transform', 'rotate(0)');
+            }
+
+            // Fault indicators
+            faultGroundGroup.setAttribute('opacity', isShortActive ? '1' : '0');
+
+            // Wire Colors
+            if (isFuseBlown) {
+                w1.className.baseVal = "wire";
+                w2.className.baseVal = "wire";
+                w3.className.baseVal = "wire grounded";
+                w4.className.baseVal = "wire grounded";
+                f1.style.stroke = "transparent";
+                f2.style.stroke = "transparent";
+                f3.style.stroke = "transparent";
+                btnToggleSwitch.disabled = true;
+                btnToggleShort.disabled = true;
+                btnReplaceFuse.style.display = "inline-block";
+            } else {
+                w1.className.baseVal = "wire energized";
+                btnToggleSwitch.disabled = false;
+                btnToggleShort.disabled = false;
+                btnReplaceFuse.style.display = "none";
+
+                if (isShortActive) {
+                    w2.className.baseVal = "wire grounded";
+                    w3.className.baseVal = "wire grounded";
+                    w4.className.baseVal = "wire grounded";
+                    // Flow animation
+                    f1.style.stroke = "#10b981";
+                    f2.style.stroke = "transparent";
+                    f3.style.stroke = "transparent";
+                } else if (isSwitchClosed) {
+                    w2.className.baseVal = "wire energized";
+                    w3.className.baseVal = "wire energized";
+                    w4.className.baseVal = "wire grounded";
+                    f1.style.stroke = "#10b981";
+                    f2.style.stroke = "#10b981";
+                    f3.style.stroke = "#10b981";
+                } else {
+                    w2.className.baseVal = "wire energized";
+                    w3.className.baseVal = "wire energized"; // pulls up to 12V through load
+                    w4.className.baseVal = "wire grounded";
+                    f1.style.stroke = "transparent";
+                    f2.style.stroke = "transparent";
+                    f3.style.stroke = "transparent";
+                }
+            }
+
+            // Description text
+            if (isFuseBlown) {
+                circuitDesc.innerHTML = "<strong>FUSE BLOWN!</strong> The current spiked to " + current.toFixed(0) + " Amperes, generating a massive " + fuseHeat.toFixed(0) + " Watts of heat. The metal element melted in milliseconds. Replace the fuse to continue.";
+            } else if (isShortActive) {
+                if (isSwitchClosed) {
+                    // Should blow instantly, covered above
+                } else {
+                    circuitDesc.innerHTML = "<strong>Short-to-Ground Active (Switch Open):</strong> Even though the switch is open, the short occurs <em>before</em> the switch. A path to ground exists immediately. Current bypassed the switch and went through the fuse directly to ground, causing it to blow immediately!";
+                }
+            } else if (isSwitchClosed) {
+                circuitDesc.innerHTML = "<strong>Circuit Normal (Switch Closed):</strong> Current flows through the fuse and the fan load. The fan's 2.0 &Omega; resistance keeps the current at a safe 6.0 Amperes. The fuse heat is a tiny " + fuseHeat.toFixed(2) + " Watts, which is perfectly safe.";
+            } else {
+                circuitDesc.innerHTML = "<strong>Circuit Open (Switch Open):</strong> No complete path to ground exists. Zero current flows. The fan is idle, and the fuse is cold.";
+            }
+        }
+
+        function triggerFuseBlow() {
+            isFuseBlown = true;
+            sparkNode.classList.add('spark-active');
+            fuseElement.style.filter = "drop-shadow(0 0 8px #ef4444) brightness(1.5)";
+            
+            setTimeout(() => {
+                sparkNode.classList.remove('spark-active');
+                fuseElement.style.filter = "none";
+                fuseElement.setAttribute('d', 'M 0 0 C 5 -10, 8 -3, 11 -8 M 18 5 L 30 0');
+                fuseElement.style.stroke = '#ef4444';
+                updateCircuit();
+            }, 300);
+        }
+
+        btnToggleSwitch.addEventListener('click', () => {
+            isSwitchClosed = !isSwitchClosed;
+            btnToggleSwitch.textContent = isSwitchClosed ? "Open Switch" : "Close Switch";
+            btnToggleSwitch.classList.toggle('active', isSwitchClosed);
+            updateCircuit();
+        });
+
+        btnToggleShort.addEventListener('click', () => {
+            isShortActive = !isShortActive;
+            btnToggleShort.textContent = isShortActive ? "Fault: SHORT TO GND" : "Fault: NONE";
+            btnToggleShort.classList.toggle('active', isShortActive);
+            updateCircuit();
+        });
+
+        btnReplaceFuse.addEventListener('click', () => {
+            isFuseBlown = false;
+            fuseElement.setAttribute('d', 'M 0 0 C 10 -10, 20 10, 30 0');
+            fuseElement.style.stroke = '#f59e0b';
+            isSwitchClosed = false;
+            btnToggleSwitch.textContent = "Close Switch";
+            btnToggleSwitch.classList.remove('active');
+            updateCircuit();
+        });
+
+        updateCircuit();
+
+        // Quiz Logic
+        function setupQuiz(quizId, submitId, feedbackId, explanationText) {
+            const options = document.querySelectorAll(`#${quizId} .quiz-option`);
+            const submitBtn = document.getElementById(submitId);
+            const feedbackDiv = document.getElementById(feedbackId);
+            let selectedOption = null;
+
+            options.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (submitBtn.disabled && feedbackDiv.textContent !== "") return;
+                    
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedOption = opt;
+                    submitBtn.disabled = false;
+                });
+            });
+
+            submitBtn.addEventListener('click', () => {
+                if (!selectedOption) return;
+
+                const isCorrect = selectedOption.getAttribute('data-correct') === 'true';
+                
+                options.forEach(o => {
+                    o.disabled = true;
+                    if (o.getAttribute('data-correct') === 'true') {
+                        o.classList.add('correct');
+                    } else if (o === selectedOption) {
+                        o.classList.add('incorrect');
+                    }
+                });
+
+                submitBtn.disabled = true;
+
+                if (isCorrect) {
+                    feedbackDiv.textContent = `Correct! ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback success";
+                } else {
+                    feedbackDiv.textContent = `Incorrect. ${explanationText}`;
+                    feedbackDiv.className = "quiz-feedback error";
+                }
+            });
+        }
+
+        setupQuiz('quiz1', 'submit1', 'feedback1', "Ohm's Law dictates that current surges when load resistance is bypassed, which exponentially spikes Joule heating (I² × R) inside the fuse element, melting it instantly.");
+        setupQuiz('quiz2', 'submit2', 'feedback2', "Because the load sits before the switch, a short to ground after the load still forces current to pass through the load. This limits the total current and prevents the fuse from blowing.");
+    </script>
+</body>
+</html>
